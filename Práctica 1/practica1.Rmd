@@ -1,0 +1,87 @@
+---
+title: "Práctica 1. Pre-procesamiento de datos y clasificación binaria."
+author: "Lidia Sánchez Mérida"
+output: pdf_document
+---
+
+# Conjuntos de datos
+
+En esta práctica se procede a analizar el conjunto de datos procedente de *Kaggle* y denominado **IEE-CIS Fraud Detection** [1]. En él se distinguen hasta dos tipos de documentos. Aquellos que contienen el término `identity` contienen los datos personales de los individuos que han realizado transacciones bancarias. Mientras que los ficheros que contienen la palabra `transaction` disponen de la información asociada a cada una de las transacciones realizadas. Ambos ficheros son relacionables a través de un campo denominado `TransactionID`, el cual nos permite conocer más detalles acerca de las personas que han realizado las transferencias. Sin embargo, de muchas de ellas no se conoce esta información.
+
+Para cada uno de estos tipos de fichero existe su correspondiente conjunto de entrenamiento y validación ya separados, por lo que en primer lugar procedemos a leer los cuatro conjuntos y a guardarlos en variables para un futuro uso.
+
+```{r message=FALSE, warning=FALSE}
+# Establecemos una semilla para que los resultados sean reproducibles.
+set.seed(0)
+# Leemos los datos desde los ficheros
+train_t<-read.csv(file="./train_transaction.csv", header=TRUE, sep=",")
+test_t<-read.csv(file="./test_transaction.csv", header=TRUE, sep=",")
+
+train_i<-read.csv(file="./train_identity.csv", header=TRUE, sep=",")
+test_i<-read.csv(file="./test_identity.csv", header=TRUE, sep=",")
+
+# Dimensiones de los conjuntos
+train_t_dim<-dim(train_t)
+test_t_dim<-dim(test_t)
+train_t_dim
+test_t_dim
+```
+
+En primer lugar procedemos a trabajar con los datos asociados directamente a las transacciones por lo que comenzamos a analizar sus respectivos conjuntos de entrenamiento y test. Tal y como podemos observar en la salida anterior ambos cuentan con un número considerablemente amplio tanto de registros como de variables. El principal problema proviene de la enorme cantidad de transacciones existentes lo cual provoca una gran dificultad a la hora de analizar el conjunto en busca de las características principales de sus campos. Es por ello por lo que a continuación procedo a seleccionar aleatoriamente 30.000 muestras para obtener conjuntos con tamaños más asequibles.
+
+# Reducción del número de registros
+
+En esta sección vamos a reducir el número de transacciones de sendos conjuntos mediante la función `sample` [4] de modo que seleccionemos hasta 30.000 registros incluyendo todas las variables de los conjuntos originales. Este procedimiento lo realizamos para los datos tanto de entrenamiento como de test.
+
+```{r}
+# Escogemos 30.000 muestras aleatoriamente de ambos conjuntos
+mini_train_t<-train_t[sample(nrow(train_t), 30000), ]
+mini_test_t<-test_t[sample(nrow(test_t), 30000), ]
+```
+
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
+Para hacernos una idea de los valores de todos estos campos procedemos a realizar una análisis exploratorio que nos permita conocer las principales características de sendos conjuntos de datos asociados a las transacciones.
+
+# Preprocesamiento de datos 
+
+En esta sección trataremos de procesar los conjuntos de datos de forma que que el conjunto resultante sea más sencillo pero sin perder demasiada calidad para que al aplicar los algoritmos de clasificación seamos capaces de entrenar modelos razonablemente competitivos con los datos preprocesados.
+
+## Reducción de dimensionalidad
+
+En primer lugar procedemos a 
+
+# Análisis exploratorio
+
+Primeramente vamos a conocer el estado de los datos. Mediante la función `df_status` [2] podremos conocer los valores de todos los campos de un conjunto con el objetivo de conocer la cantidad y el porcentaje de ceros, valores nulos o infinitos. Asimismo, en la última columna también nos indica la cantidad de valores únicos que existen para cada campo. De este modo podemos conocer, por ejemplo, si una variable es categórica. En particular nos centraremos sobre los atributos más relevantes [3] como por ejemplo la variable de clasificación binaria `isFraud` de la cual podemos averiguar el número de transacciones fraudulentas para conocer el número de muestras que representa cada clase, es decir, si se encuentran **balanceadas**.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Conocemos el estado de los dos conjuntos de transacciones
+library(funModeling)
+train_t_estado<-df_status(train_t)
+test_t_estado<-df_status(test_t)
+
+# Datos útiles
+library(ggplot2)
+ggplot(data=prueba, aes(y=length(prueba$isFraud), x=prueba$isFraud)) + geom_bar(stat="identity")
+
+ggplot(train_t) +
+  geom_histogram(aes(x = TransactionID, fill = as.factor(isFraud)), binwidth = 1)
+cat("Transacciones fraudulentas:",train_t_estado$q_zeros[train_t_estado$variable=='isFraud'])
+cat("\nTransacciones NO fraudulentas:", train_t_dim[1]- train_t_estado$q_zeros[train_t_estado$variable=='isFraud'])
+```
+
+
+
+
+
+# Bibliografía
+
+[1] Kaggle, IEEE-CIS Fraud Detection, https://www.kaggle.com/c/ieee-fraud-detection/data
+[2] RDocumentation, df_status, https://www.rdocumentation.org/packages/funModeling/versions/1.9.3/topics/df_status
+[3] Kaggle, Data Description (Details and Discussion), https://www.kaggle.com/c/ieee-fraud-detection/discussion/101203
+[4] Andrie de Vries and Joris Meys, How to Take Samples from Data in R, https://www.dummies.com/programming/r/how-to-take-samples-from-data-in-r/
