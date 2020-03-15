@@ -27,54 +27,105 @@ train_t_dim
 test_t_dim
 ```
 
-En primer lugar procedemos a trabajar con los datos asociados directamente a las transacciones por lo que comenzamos a analizar sus respectivos conjuntos de entrenamiento y test. Tal y como podemos observar en la salida anterior ambos cuentan con un número considerablemente amplio tanto de registros como de variables. El principal problema proviene de la enorme cantidad de transacciones existentes lo cual provoca una gran dificultad a la hora de analizar el conjunto en busca de las características principales de sus campos. Es por ello por lo que a continuación procedo a seleccionar aleatoriamente 30.000 muestras para obtener conjuntos con tamaños más asequibles.
+En primer lugar procedemos a trabajar con los datos asociados directamente a las transacciones por lo que comenzamos a analizar sus respectivos conjuntos de entrenamiento y test. Tal y como podemos observar en la salida anterior ambos cuentan con un número considerablemente amplio tanto de registros como de variables. Para conocer más información acerca de los conjuntos de datos vamos a realizar un análisis exploratorio que nos permita identificar los principales aspectos más relevantes.
 
-# Reducción del número de registros
+# Análisis exploratorio
 
-En esta sección vamos a reducir el número de transacciones de sendos conjuntos mediante la función `sample` [4] de modo que seleccionemos hasta 30.000 registros incluyendo todas las variables de los conjuntos originales. Este procedimiento lo realizamos para los datos tanto de entrenamiento como de test.
+Primeramente vamos a conocer el estado de los datos. Mediante la función `df_status` [3] podremos conocer los valores de todos los campos de un conjunto con el objetivo de conocer la cantidad y el porcentaje de ceros, valores nulos o infinitos. Asimismo, en la última columna también nos indica la cantidad de valores únicos que existen para cada campo. De este modo podemos conocer, por ejemplo, si una variable es categórica. Para conocer cuáles podrían ser los campos de mayor relevancia, podemos leer desde el propio Kaggle qué es lo que representa cada uno de ellos [4].
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Obtenemos el estado de los dos conjuntos de transacciones
+library(funModeling)
+train_t_estado<-df_status(train_t)
+test_t_estado<-df_status(test_t)
+```
+
+Si bien el resultado proporcionado por estas funciones es súmamente extenso como para imprimirlo, he realizado un análisis acerca de las variables más relevantes obteniendo las siguientes conclusiones:
+
+* En primer lugar destacamos que la variable categórica `isFraud` que intentamos predecir dispone de un altísimo número de ejemplos de transacciones no fraudulentas en el conjunto de entrenamiento. Tal es así que apenas existe un 3.5% de transacciones clasificadas como fraudulentas. Si bien este tipo de fenómenos es bastante común, clases tan súmamente desbalanceadas suelen dificultar el proceso de entrenamiento y obtención de buenos clasificadores.
+* Las variables con un mayor número de valores perdidos están mayoritariamente relacionadas con el tiempo entre transacciones, distancias y características no relevantes.
+* Si bien el número de variables inicial es bastante elevado, seguramente la mayoría se podrán descartar por su escasa influencia en la temática del problema que estamos abordando.
+
+A continuación procedo a representar gráficamente otro tipo de estadísticas que pueden también ser interesantes para conocer, un poco, las características del tipo de transacciones. En primer lugar vamos a averiguar si existe algún tipo de **relación entre la cantidad de la transacción y su clasificación como fraudulenta o no**. El objetivo es conocer si las transacciones fraudulentas han podido ser detectadas por traspasar grandes sumas de dinero. Como quería representar los resultados en la misma gráfica y cada clase cuenta con muestras diferentes, lo he hecho con `plot` en lugar de con `ggplot`[5].
+
+```{r message=FALSE, warning=FALSE}
+# Relación entre si la transacción es fraudulenta y el dinero que se traspasa
+# Obtenemos del conjunto de entrenamiento las transacciones fraudulentas y las que no lo son por separado
+no_fraudulentas<-train_t[train_t$isFraud==0,]
+fraudulentas<-train_t[train_t$isFraud==1,]
+
+# Utilizamos plot en lugar de ggplot porque los dos conjuntos tienen tamaños diferentes
+plot(fraudulentas$TransactionAmt, type="l", col="blue", lwd=5, xlab="", ylab="Cantidad")
+lines(no_fraudulentas$TransactionAmt, col="lightblue", lwd=2)
+title("Relación entre fraude-dinero")
+legend('topleft',c("Fraude","No Fraude"), lwd=c(5,2), col=c("blue","lightblue"), y.intersp=1.5)
+```
+
+Como se puede observar las cantidades de dinero de ambos tipos de transacciones son en general bastante similares. Sin embargo, sí que podemos apreciar que **los picos que se producen en las fraudulentas son más pronunciados que los de las no fradulentas**. Cuanto mayor es el pico, mayor cantidad de dinero se ha transferido, por lo tanto la cantidad de dinero que se traspase puede ser uno de los factores que ayuden a determinar si la transacción es o no fraudulenta.
+
+Aprovechando los dos conjuntos separados de transacciones, vamos a estudiar como segundo caso la **relación entre el tipo de transacción y la medida de tiempo asociada** en el campo `TransactionDT`. Esta representa la diferencia entre dos valores temporales, y aunque si bien en la descripción del dataset no especifican las medidas utilizadas, sus valores se basan en los de los campos DX donde X es un número entre 1 y 15. De estos conocemos por la descripción en Kaggle que se consideran, por ejemplos, los días transcurridos entre una transacción y otra. El objetivo de este análisis consiste en averiguar si el rango temporal entre dos transacciones puede ser un factor a considerar para averiguar si son o no fraudulentas.
 
 ```{r}
-# Escogemos 30.000 muestras aleatoriamente de ambos conjuntos
-mini_train_t<-train_t[sample(nrow(train_t), 30000), ]
-mini_test_t<-test_t[sample(nrow(test_t), 30000), ]
+# Utilizamos plot en lugar de ggplot porque los dos conjuntos tienen tamaños diferentes
+plot(fraudulentas$TransactionDT, type="l", col="darkred", lwd=4, xlab="", ylab="Timedelta")
+lines(no_fraudulentas$TransactionDT, col="darkgreen", lwd=4)
+title("Relación entre fraude-tiempo")
+legend('topleft',c("Fraude","No Fraude"), lwd=c(4,4), col=c("darkred","darkgreen"), y.intersp=1.5)
+```
+
+Como podemos observar existe una **clara diferencia entre el *timedelta* y la naturaleza de la transacción**. Aquellas clasificadas como fraudulentas disponen de un valor creciente exponencialmente, mientras que los valores de las no fraudulentas se mantienen más bajos y constantes. Esto puede suponer en términos, por ejemplo, de días transcurridos entre una transacción y otra que este período es mayor cuando las transacciones son falsas.
+
+Como tercera estadística procedemos a averiguar si existe alguna relación entre la variable `ProductCD` y el tipo de la transacción. Esta es una variable categórica que, según he podido visualizar con la función `df_status`, dispone de 5 etiquetas diferentes que representan los códigos asociados a los productos por los que se han realizado las transacciones. El objetivo que persigue el estudio de este campo reside en conocer si, para un determinado producto, existe una tendencia al fraude. En este caso sí que utilizaremos `ggplot` basándonos en este ejemplo [6] en el que unimos los registros de los productos tanto de las transferencias fraudulentas como de las que no lo son.
+
+```{r message=FALSE, warning=FALSE}
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+# Obtenemos los productos de ambos tipos de transferencias en conjuntos diferentes
+f.product<-fraudulentas %>% group_by(ProductCD) %>% summarize(products="Fraude", n=n())
+nf.product<-no_fraudulentas %>% group_by(ProductCD) %>% summarize(products="No fraude", n=n())
+# Unimos todos los registros y los representamos cada uno categorizado por el producto
+products<-rbind(f.product, nf.product)
+ggplot(products, aes(x=ProductCD, y=n, fill=products)) + geom_bar(stat="identity", position="dodge") + labs(title = "Relación producto-fraude", x = "Códigos de productos", y = "Cantidad de productos")
+```
+
+Como podemos apreciar, en el caso de las transacciones no fraudulentas existe una amplia mayoría de ellas relacionadas con el producto cuyo código es W, mientras que en el resto de productos el número de transacciones no varía considerablemente. En el caso de las fraudulentas la mayoría se reparten entre los productos C y W, sin embargo no hay diferencias significativas que representen una clara tendencia, como es en el caso de las transacciones no fraudulentas.
+
+Para finalizar, realizaré un último estudio asociado a los **dominios** desde los que se realizan las transacciones. Por un lado disponemos de datos acerca del comprador en la variable `P_emaildomain` mientras que la variable del destinatario de la transacción `R_emaildomain` indica el dominio hacia el que se dirige el dinero. El objetivo consiste en visualizar los 10 dominios donde se realizan el mayor número de transacciones falsas, tanto de la parte de los compradores como de la parte de los vendedores. Para ello obtenemos el listado de los mismos así como el número de transacciones realizadas, los ordenamos en orden decreciente y mostramos los 10 primeros puesto que visualizar los 60 existentes complicaría bastante su posterior análisis gráfico.
+
+```{r}
+# Obtenemos el listado de dominios y el número de transacciones fraudulentas
+f.dominios_estudio<-summary(fraudulentas$P_emaildomain)
+# Ordenamos los dominios de mayor a menor número de transacciones
+f.dominios_estudio<-sort(f.dominios_estudio, decreasing = TRUE)
+# Componemos el dataframe con los nombres de los dominios y el número de transacciones ordenadas
+f.dominios<-cbind(dominio=names(f.dominios_estudio))
+f.dominios<-cbind(f.dominios, recuento=as.numeric(f.dominios_estudio[1:length(f.dominios_estudio)]))
+
+----------------------------------------------------------------------------------------------------------
+
+ggplot(data=data.frame(f.dominios[1:10]), aes(x=dominio[1:10], y=recuento[1:10])) + geom_bar(stat="identity")+coord_flip()+ggtitle('Dominios más fraudulentos.')
 ```
 
 
-
-
-
-
 -----------------------------------------------------------------------------------------------------------
-Para hacernos una idea de los valores de todos estos campos procedemos a realizar una análisis exploratorio que nos permita conocer las principales características de sendos conjuntos de datos asociados a las transacciones.
+
+El principal problema proviene de la enorme cantidad de transacciones existentes lo cual provoca una gran dificultad a la hora de analizar el conjunto en busca de las características principales de sus campos. Es por ello por lo que a continuación procedo a seleccionar aleatoriamente 30.000 muestras para obtener conjuntos con tamaños más asequibles.
+
+# Reducción del número de registros
+
+En esta sección vamos a reducir el número de transacciones de sendos conjuntos mediante la función `sample` [2] de modo que seleccionemos hasta 30.000 registros incluyendo todas las variables de los conjuntos originales. Este procedimiento lo realizamos para los datos tanto de entrenamiento como de test.
+
+```{r}
+# Escogemos 30.000 muestras aleatoriamente de ambos conjuntos
+#mini_train_t<-train_t[sample(nrow(train_t), 100000), ]
+#mini_test_t<-test_t[sample(nrow(test_t), 30000), ]
+```
 
 # Preprocesamiento de datos 
 
 En esta sección trataremos de procesar los conjuntos de datos de forma que que el conjunto resultante sea más sencillo pero sin perder demasiada calidad para que al aplicar los algoritmos de clasificación seamos capaces de entrenar modelos razonablemente competitivos con los datos preprocesados.
-
-## Reducción de dimensionalidad
-
-En primer lugar procedemos a 
-
-# Análisis exploratorio
-
-Primeramente vamos a conocer el estado de los datos. Mediante la función `df_status` [2] podremos conocer los valores de todos los campos de un conjunto con el objetivo de conocer la cantidad y el porcentaje de ceros, valores nulos o infinitos. Asimismo, en la última columna también nos indica la cantidad de valores únicos que existen para cada campo. De este modo podemos conocer, por ejemplo, si una variable es categórica. En particular nos centraremos sobre los atributos más relevantes [3] como por ejemplo la variable de clasificación binaria `isFraud` de la cual podemos averiguar el número de transacciones fraudulentas para conocer el número de muestras que representa cada clase, es decir, si se encuentran **balanceadas**.
-
-```{r message=FALSE, warning=FALSE, include=FALSE}
-# Conocemos el estado de los dos conjuntos de transacciones
-library(funModeling)
-train_t_estado<-df_status(train_t)
-test_t_estado<-df_status(test_t)
-
-# Datos útiles
-library(ggplot2)
-ggplot(data=prueba, aes(y=length(prueba$isFraud), x=prueba$isFraud)) + geom_bar(stat="identity")
-
-ggplot(train_t) +
-  geom_histogram(aes(x = TransactionID, fill = as.factor(isFraud)), binwidth = 1)
-cat("Transacciones fraudulentas:",train_t_estado$q_zeros[train_t_estado$variable=='isFraud'])
-cat("\nTransacciones NO fraudulentas:", train_t_dim[1]- train_t_estado$q_zeros[train_t_estado$variable=='isFraud'])
-```
-
+------------------------------------------------------------------------------------------------------------
 
 
 
@@ -82,6 +133,7 @@ cat("\nTransacciones NO fraudulentas:", train_t_dim[1]- train_t_estado$q_zeros[t
 # Bibliografía
 
 [1] Kaggle, IEEE-CIS Fraud Detection, https://www.kaggle.com/c/ieee-fraud-detection/data
-[2] RDocumentation, df_status, https://www.rdocumentation.org/packages/funModeling/versions/1.9.3/topics/df_status
-[3] Kaggle, Data Description (Details and Discussion), https://www.kaggle.com/c/ieee-fraud-detection/discussion/101203
-[4] Andrie de Vries and Joris Meys, How to Take Samples from Data in R, https://www.dummies.com/programming/r/how-to-take-samples-from-data-in-r/
+[2] Andrie de Vries and Joris Meys, How to Take Samples from Data in R, https://www.dummies.com/programming/r/how-to-take-samples-from-data-in-r/
+[3] RDocumentation, df_status, https://www.rdocumentation.org/packages/funModeling/versions/1.9.3/topics/df_status
+[4] Kaggle, Data Description (Details and Discussion), https://www.kaggle.com/c/ieee-fraud-detection/discussion/101203
+[5] Math Insight, Plotting line graphs in R, https://mathinsight.org/plotting_line_graphs_in_r#:~:text=The%20basic%20plot%20command&text=The%20plot%20command%20accepts%20many,(with%20the%20main%20argument).
