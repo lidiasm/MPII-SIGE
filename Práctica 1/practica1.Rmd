@@ -31,6 +31,8 @@ En primer lugar procedemos a trabajar con los datos asociados directamente a las
 
 # Análisis exploratorio
 
+## Estado de los datos
+
 Primeramente vamos a conocer el estado de los datos. Mediante la función `df_status` [3] podremos conocer los valores de todos los campos de un conjunto con el objetivo de conocer la cantidad y el porcentaje de ceros, valores nulos o infinitos. Asimismo, en la última columna también nos indica la cantidad de valores únicos que existen para cada campo. De este modo podemos conocer, por ejemplo, si una variable es categórica. Para conocer cuáles podrían ser los campos de mayor relevancia, podemos leer desde el propio Kaggle qué es lo que representa cada uno de ellos [4].
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -46,6 +48,8 @@ Si bien el resultado proporcionado por estas funciones es súmamente extenso com
 * Las variables con un mayor número de valores perdidos están mayoritariamente relacionadas con el tiempo entre transacciones, distancias y características no relevantes.
 * Si bien el número de variables inicial es bastante elevado, seguramente la mayoría se podrán descartar por su escasa influencia en la temática del problema que estamos abordando.
 
+## Relación dinero-fraude
+
 A continuación procedo a representar gráficamente otro tipo de estadísticas que pueden también ser interesantes para conocer, un poco, las características del tipo de transacciones. En primer lugar vamos a averiguar si existe algún tipo de **relación entre la cantidad de la transacción y su clasificación como fraudulenta o no**. El objetivo es conocer si las transacciones fraudulentas han podido ser detectadas por traspasar grandes sumas de dinero. Como quería representar los resultados en la misma gráfica y cada clase cuenta con muestras diferentes, lo he hecho con `plot` en lugar de con `ggplot`[5].
 
 ```{r message=FALSE, warning=FALSE}
@@ -59,9 +63,16 @@ plot(fraudulentas$TransactionAmt, type="l", col="blue", lwd=5, xlab="", ylab="Ca
 lines(no_fraudulentas$TransactionAmt, col="lightblue", lwd=2)
 title("Relación entre fraude-dinero")
 legend('topleft',c("Fraude","No Fraude"), lwd=c(5,2), col=c("blue","lightblue"), y.intersp=1.5)
+
+############# POSIBLE HISTOGRAMA PARA REDUCIR EN FILAS
+# library(ggplot2)
+# ggplot(train_t) +
+#   geom_histogram(aes(x = TransactionAmt, fill = as.factor(isFraud)))
 ```
 
 Como se puede observar las cantidades de dinero de ambos tipos de transacciones son en general bastante similares. Sin embargo, sí que podemos apreciar que **los picos que se producen en las fraudulentas son más pronunciados que los de las no fradulentas**. Cuanto mayor es el pico, mayor cantidad de dinero se ha transferido, por lo tanto la cantidad de dinero que se traspase puede ser uno de los factores que ayuden a determinar si la transacción es o no fraudulenta.
+
+## Relación tiempo-fraude
 
 Aprovechando los dos conjuntos separados de transacciones, vamos a estudiar como segundo caso la **relación entre el tipo de transacción y la medida de tiempo asociada** en el campo `TransactionDT`. Esta representa la diferencia entre dos valores temporales, y aunque si bien en la descripción del dataset no especifican las medidas utilizadas, sus valores se basan en los de los campos DX donde X es un número entre 1 y 15. De estos conocemos por la descripción en Kaggle que se consideran, por ejemplos, los días transcurridos entre una transacción y otra. El objetivo de este análisis consiste en averiguar si el rango temporal entre dos transacciones puede ser un factor a considerar para averiguar si son o no fraudulentas.
 
@@ -74,6 +85,8 @@ legend('topleft',c("Fraude","No Fraude"), lwd=c(4,4), col=c("darkred","darkgreen
 ```
 
 Como podemos observar existe una **clara diferencia entre el *timedelta* y la naturaleza de la transacción**. Aquellas clasificadas como fraudulentas disponen de un valor creciente exponencialmente, mientras que los valores de las no fraudulentas se mantienen más bajos y constantes. Esto puede suponer en términos, por ejemplo, de días transcurridos entre una transacción y otra que este período es mayor cuando las transacciones son falsas.
+
+## Relación productos-fraude 
 
 Como tercera estadística procedemos a averiguar si existe alguna relación entre la variable `ProductCD` y el tipo de la transacción. Esta es una variable categórica que, según he podido visualizar con la función `df_status`, dispone de 5 etiquetas diferentes que representan los códigos asociados a los productos por los que se han realizado las transacciones. El objetivo que persigue el estudio de este campo reside en conocer si, para un determinado producto, existe una tendencia al fraude. En este caso sí que utilizaremos `ggplot` basándonos en este ejemplo [6] en el que unimos los registros de los productos tanto de las transferencias fraudulentas como de las que no lo son.
 
@@ -91,7 +104,9 @@ ggplot(products, aes(x=ProductCD, y=n, fill=products)) + geom_bar(stat="identity
 
 Como podemos apreciar, en el caso de las transacciones no fraudulentas existe una amplia mayoría de ellas relacionadas con el producto cuyo código es W, mientras que en el resto de productos el número de transacciones no varía considerablemente. En el caso de las fraudulentas la mayoría se reparten entre los productos C y W, sin embargo no hay diferencias significativas que representen una clara tendencia, como es en el caso de las transacciones no fraudulentas.
 
-Para finalizar, realizaré un último estudio asociado a los **dominios** desde los que se realizan las transacciones. Por un lado disponemos de datos acerca del comprador en la variable `P_emaildomain` mientras que la variable del destinatario de la transacción `R_emaildomain` indica el dominio hacia el que se dirige el dinero. El objetivo consiste en visualizar los 10 dominios donde se realizan el mayor número de transacciones falsas, tanto de la parte de los compradores como de la parte de los vendedores. Para ello obtenemos el listado de los mismos así como el número de transacciones realizadas, los ordenamos en orden decreciente y mostramos los 10 primeros puesto que visualizar los 60 existentes complicaría bastante su posterior análisis gráfico.
+## Relación dominios-fraude
+
+Para finalizar, realizaré un último estudio asociado a los **dominios** desde los que se realizan las transacciones. Por un lado disponemos de datos acerca del origen de la transacción en la variable `P_emaildomain` mientras que la variable del destinatario de la transacción `R_emaildomain` indica el dominio hacia el que se dirige el dinero. El objetivo consiste en visualizar los 10 dominios donde se realizan el mayor número de transacciones falsas, tanto de la parte de los compradores como de la parte de los vendedores. Para ello obtenemos el listado de los mismos así como el número de transacciones realizadas, los ordenamos en orden decreciente y mostramos los 10 primeros puesto que visualizar los 60 existentes complicaría bastante su posterior análisis gráfico.
 
 ```{r}
 # Obtenemos el listado de dominios y el número de transacciones fraudulentas
@@ -101,33 +116,177 @@ f.dominios_estudio<-sort(f.dominios_estudio, decreasing = TRUE)
 # Componemos el dataframe con los nombres de los dominios y el número de transacciones ordenadas
 f.dominios<-cbind(dominio=names(f.dominios_estudio))
 f.dominios<-cbind(f.dominios, recuento=as.numeric(f.dominios_estudio[1:length(f.dominios_estudio)]))
-
-----------------------------------------------------------------------------------------------------------
-
-ggplot(data=data.frame(f.dominios[1:10]), aes(x=dominio[1:10], y=recuento[1:10])) + geom_bar(stat="identity")+coord_flip()+ggtitle('Dominios más fraudulentos.')
+# Dibujamos los 10 dominios con más fraudes en en lado de los COMPRADORES
+ggplot(data=data.frame(f.dominios[1:10,]), aes(x=dominio, y=recuento, fill=dominio)) + geom_bar(stat="identity")+coord_flip()+ggtitle('Dominios de los compradores con más fraudes.')
 ```
 
-
------------------------------------------------------------------------------------------------------------
-
-El principal problema proviene de la enorme cantidad de transacciones existentes lo cual provoca una gran dificultad a la hora de analizar el conjunto en busca de las características principales de sus campos. Es por ello por lo que a continuación procedo a seleccionar aleatoriamente 30.000 muestras para obtener conjuntos con tamaños más asequibles.
-
-# Reducción del número de registros
-
-En esta sección vamos a reducir el número de transacciones de sendos conjuntos mediante la función `sample` [2] de modo que seleccionemos hasta 30.000 registros incluyendo todas las variables de los conjuntos originales. Este procedimiento lo realizamos para los datos tanto de entrenamiento como de test.
+Tal y como podemos observar, el dominio desde el que se comete un mayor número de fraudes por parte de los compradores es el de *gmail*, seguido de *anonymous*, *aol* y *outlook*. El motivo de este ranking puede residir en que la mayoría de la sociedad disponen de una cuenta de Google para utilizarla en la mayoría de las operaciones online que realizan. A continuación visualizaremos los 10 dominios de los **transactores** donde se cometen un mayor número de fraudes.
 
 ```{r}
-# Escogemos 30.000 muestras aleatoriamente de ambos conjuntos
-#mini_train_t<-train_t[sample(nrow(train_t), 100000), ]
+# Obtenemos el listado de dominios y el número de transacciones fraudulentas
+f.dominios_estudio<-summary(fraudulentas$R_emaildomain)
+# Ordenamos los dominios de mayor a menor número de transacciones
+f.dominios_estudio<-sort(f.dominios_estudio, decreasing = TRUE)
+# Componemos el dataframe con los nombres de los dominios y el número de transacciones ordenadas
+f.dominios<-cbind(dominio=names(f.dominios_estudio))
+f.dominios<-cbind(f.dominios, recuento=as.numeric(f.dominios_estudio[1:length(f.dominios_estudio)]))
+# Dibujamos los 10 dominios con más fraudes en en lado de los COMPRADORES
+ggplot(data=data.frame(f.dominios[1:10,]), aes(x=dominio, y=recuento, fill=dominio)) + geom_bar(stat="identity")+coord_flip()+ggtitle('Dominios de los vendedores con más fraudes.')
+```
+
+En este gráfico podemos comprobar que *gmail* sigue siendo uno de los dominios más utilizados, en este caso por los **destinatarios** para cometer fraudes. Sin embargo, a diferencia del anterior gráfico en este podemos comprobar que en primer lugar existe un dominio en el que se realizan un mayor número de transacciones fraudulentas pero no está identificado. Esto puede deberse a que la mayoría de ellos se encuentran ocultos dentro de la conocida *Dark Web* y si bien pueden llegar a detectarse es bastante complicado acceder a ellos. 
+
+# Preprocesamiento de datos
+
+En esta sección procedemos a aplicar diversas técnicas para mejorar la calidad del conjunto de datos de modo que podamos obtener un subconjunto más sencillo con el que entrenar los futuros modelos predictores. Uno de los principales problemas de este conjunto reside en su **gran dimensionalidad** tanto del número de registros como de columnas. El hecho de disponer de un enorme grupo de muestras puede provocar problemas de rendimiento a la hora de intentar entrenar un modelo con tal volumen de datos. Mientras que disponer de tal cantidad de variables también puede producir grandes tiempos de espera en entrenamiento al considerar tantas columnas para obtener el clasificador. Estos son los dos principales problemas que se abordan a continuación.
+
+## Reducción del número de muestras aleatoriamente
+
+En primer lugar vamos a reducir el número de transacciones mediante la función `sample` [2] de modo que seleccionaremos hasta 50.000 muestras aleatoriamente incluyendo todas las columnas del dataset.
+
+```{r}
+# Escogemos 50.000 muestras aleatoriamente de ambos conjuntos
+mini_train_t<-train_t[sample(nrow(train_t), 50000), ]
 #mini_test_t<-test_t[sample(nrow(test_t), 30000), ]
 ```
 
-# Preprocesamiento de datos 
+## Reducción del número de variables
 
-En esta sección trataremos de procesar los conjuntos de datos de forma que que el conjunto resultante sea más sencillo pero sin perder demasiada calidad para que al aplicar los algoritmos de clasificación seamos capaces de entrenar modelos razonablemente competitivos con los datos preprocesados.
-------------------------------------------------------------------------------------------------------------
+En este segundo apartado se van a aplicar diversas técnicas para preprocesar los datos del conjunto de modo que eliminemos las columnas que no nos aporten información o aquellas con las que sea difícil trabajar con el objetivo de entrenar varios clasificadores en posteriores secciones. 
+
+### Columnas con más del 70% de NAs
+
+Comenzamos abordando otro de los principales problemas de este conjunto de datos que consiste en la aparición numerosa de valores perdidos o NAs. Si bien uno de los métodos posibles para eliminarlos es predecirlos utilizando alguna técnica que nos permita obtener un valor aproximado a partir de la información que existe en el conjunto, si el número de estos valores es sumamente predominante (70%) es prácticamente imposible intentar aproximarlos. Por lo tanto **los eliminamos** del conjunto basándonos en los *scripts* proporcionados en la asignatura.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(magrittr)
+library(dplyr)
+library(funModeling)
+estado_mini_train_t<-df_status(mini_train_t)
+# Obtenemos aquellas columnas con más de un 70% de valores perdidos (NAs) a partir del estado de los datos
+na_cols <- estado_mini_train_t %>%
+  filter(p_na > 70) %>%
+  select(variable)
+# Eliminamos las columnas obtenidas
+remove_cols <- bind_rows(
+  list(na_cols)
+)
+# Obtenemos el conjunto de datos reducido 
+mini_train_t_reduc <- mini_train_t %>%
+  select(-one_of(remove_cols$variable))
+```
+
+A continuación comprobamos el número de variables resultante tras aplicar este primer proceso. Tal y como podemos observar hemos pasado de **394 variables a 227**, que si bien siguen siendo muchas solo eliminando las columnas con más de un 70% de NAs hemos conseguido una buena reducción del número de columnas.
+
+### Variables irrelevantes
+
+Analizando más en profundidad la información que nos aportan las columnas desde la propia página del dataset [1] me he percatado de que las columnas **C1-C14 están cifradas**, lo cual quiere decir que si no disponemos de la clave de encriptado no podemos acceder a la información real, y por tanto, disponemos de 14 columnas con información que no significa nada. Por lo tanto, como segundo procedimiento, vamos a eliminarlas de nuestro conjunto de datos. De este modo ahora disponemos de **213 variables**.
+
+```{r}
+# Visualizamos las dimensiones del nuevo conjunto de datos.
+dim(mini_train_t_reduc)
+# Eliminamos las columnas C1-C14 del conjunto resultante.
+mini_train_t_reduc2<-mini_train_t_reduc[,-c(17:30)]
+```
+
+También se consideran variables irrelevantes aquellas que no aportan información útil debido a que sus **valores son muy similares**. Este tipo de columnas no nos ayudan a predecir, posteriormente, si una transacción es o no fraudulenta puesto que independientemente de las muestras su comportamiento no varía. Uno de los métodos por los que se puede decidir si una variable dispone de valores interesantes es mediante la **desviación estándar**. Si esta medida estadística es 0 entonces nos indica que no existe variabilidad en los valores de la columna, y por tanto, esta variable no será útil. He incluido este procesamiento debido al error que siempre obtenía al aplicar el PCA con valores NAs utilizando la librería `missMDA`. Si bien el error es bastante confuso, encontré la solución en este foro [6] en el que se explica este hecho. Asimismo, también se indica que no puede aplicarse el algoritmo PCA a este tipo de variables puesto que con una desviación estándar 0 este no puede decidir si la variable es relevante o no y como resultado provoca una excepción.
+
+Para calcular la desviación estándar es necesario que todas las variables sean numéricas, por lo que previamente pasaremos cada valor a su número correspondiente, incluyendo las columnas categóricas como `ProductCD` a la cual se le asignará un valor diferente a cada una de las etiquetas de sus productos.
+
+```{r}
+# Convertimos todas las variables a variables numéricas
+mini_train_t_reduc3<-mini_train_t_reduc2
+for(i in c(1:ncol(mini_train_t_reduc3))) {
+     mini_train_t_reduc3[,i] <- as.numeric(mini_train_t_reduc3[,i])
+}
+# Eliminamos las columnas que tengan desviación estándar = 0
+mini_train_t_reduc4<-Filter(function(x) sd(x) != 0, mini_train_t_reduc3)
+dim(mini_train_t_reduc4)
+colnames(mini_train_t_reduc4)
+```
+
+Como podemos apreciar el conjunto de datos resultante es súmamente sorprendente puesto que hemos pasado de tener **213 variables a 11**, lo cual indica que la mayoría de los valores de muchas de las variables parecían no aportar información significativa para el problema. Ahora nuestro dataset cuenta con un número de columnas con el que se puede trabajar de forma más sencilla.
+
+### Correlación variables-isFraud
+
+A continuación vamos a analizar qué variables son las más relacionadas con la columna clasificatoria `isFraud`. Cuanto mayor sea el coeficiente de correlación entre una variable y la etiqueta, más nos ayudará dicha variable a predecir si la transacción es fraudulenta o no. Para ello, en primer lugar debemos convertir todas las variables a variables numéricas para poder aplicar la función `correlation_table` tal y como se indica en un *script* de ejemplo de la asignatura.
+
+```{r message=FALSE, warning=FALSE}
+library(funModeling)
+# Calculamos los coeficientes de correlación en torno a la variable clasificatoria
+tabla_corr<-correlation_table(mini_train_t_reduc4, target='isFraud')
+tabla_corr
+```
+
+Como podemos apreciar la única variable relacionada con la variable clasificatoria es ella misma, mientras que el resto de variables apenas se encuentran correladas con la misma. Esto significa que no existe un claro grupo de variables que expliquen si una transacción es fraudulenta o no, por lo que con estos resultados a priori no podemos aplicar ninguna reducción adicional.
+
+### Outliers
+
+Los *outliers* son datos cuyos valores están caracterizados por encontrarse fuera del rango normalizado para el atributo. En otras palabras, este tipo de datos disponen de valores muy diferentes a los del resto del conjunto y por ende pueden afectar a la capacidad de generalización de los modelos entrenados. Por ello, a continuación vamos a realizar un estudio acerca de los *outliers* en el conjunto de entrenamiento. Para desarrollar este estudio me he inspirado en el siguiente ejemplo [7] en el que mediante la función `boxplot` [8] se calculan los valores situados fuera del rango de cada variable. 
+
+```{r}
+library(magrittr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+# Calculamos los outliers de todas las variables del conjunto de datos.
+outliers<-mini_train_t_reduc4 %>%
+      map(~ boxplot.stats(.x)$out) 
+# Mostramos los viente primeros resultados
+summary(outliers)
+```
+
+Como podemos comprobar, la mayoría de las variables cuentan con varios *outliers*. No obstante, la gran mayoría de las variables son variables categóricas cuyas etiquetas se han transformado en valores numéricos. Investigando acerca de si se debían de tratar de forma diferente por el hecho de disponer de un conjunto limitado de valores, encontré esta sugerencia [9] consistente en calcular la frecuencia de cada una de las etiquetas de una variable determinada. De este modo podremos identificar los *outliers* con las frecuencias minoritarias en relación al tamaño del conjunto de datos, que en mi caso es de 50.000. Para realizar el cálculo vamos a hacer uso de la librería `plyr`, en particular de la función `count` que nos devuelve el número de apariciones de cada etiqueta para una variable dada.
+
+```{r}
+library(plyr)
+# Calculamos el número de apariciones de cada etiqueta para cada variable categórica.
+frecuencias<-apply(mini_train_t_reduc4[c(5:11)], 2, count)
+
+qnt <- quantile(mini_train_t_reduc4$TransactionAmt, probs=c(.25, .75), na.rm = T)
+H <- 1.5 * IQR(mini_train_t_reduc4$TransactionAmt, na.rm = T)
+length(mini_train_t_reduc4$TransactionAmt[mini_train_t_reduc4$TransactionAmt < (qnt[1] - H)])
+mini_train_t_reduc4$TransactionAmt[mini_train_t_reduc4$TransactionAmt > (qnt[2] + H)]
+```
 
 
+### PCA con valores perdidos
+
+En esta sección se pretende reducir al máximo el número de variables predictoras con las que posteriormente entrenar los futuros modelos. Para ello uno de los algoritmos más conocidos es el **PCA** que realiza un análisis de los componentes principales para devolver aquellas variables que aportan una mayor cantidad de información.
+
+
+Falta por realizar un último paso, que consiste en el análisis de componentes principales (PCA) con vistas
+a reducir la dimensionalidad de nuestros datos, ya que a pesar de todas las transformaciones de los datos,
+seguimos teniendo muchos atributos y buscamos reducir este tamaño.
+Este algoritmo es un filtro (selector de características) no supervisado, y tiene la desventaja de que es sensible
+a las distancias (datos y valores grandes), por lo que es necesario un centrado y escalado previo a su ejecución.
+Primero centramos los datos (restandoles la media aritmética) y después escalamos dividiendo entre el valor
+de la desviación típica.
+Si bien he intentado aplicar la librería `missMDA`[6] que está especialmente orientada en aplicar la técnica PCA para reducir el número de variables que intervienen, he obtenido el mismos error tras varios días probando: `Error in eigen(crossprod(X, X), symmetric = TRUE) : infinite or missing values in 'x'`.
+
+- Explicar el error 
+
+
+```{r}
+### QUITAR VARIABLES CON DESVIACIÓN ESTÁNDAR 0 (REFERENCIA) ->>> el por qué está en la conver de andrea
+prueba<-Filter(function(x) sd(x) != 0, prueba)
+library(missMDA)
+nb<-estim_ncpPCA(prueba, method.cv = "Kfold", verbose = FALSE)
+
+#prueba<-do.call(data.frame,lapply(prueba, function(x) replace(x, is.infinite(x),NA)))
+#nb = estim_ncpPCA(prueba,ncp.max=5)
+#nb <- estim_ncpPCA(prueba, method.cv = "Kfold", verbose = FALSE)
+#nb <- imputePCA(prueba)
+
+############ IMPUTACIÓN DE VALORE SPERDIDOS
+# library(mice)
+# imputation <- mice(mini_train_t_reduc, m=1, maxit=500, method='cart', seed=500)
+# 
+# imputation
+# complete(imputation)
+# plot(imputation)
+# stripplot(imputation, pch = 20, cex = 1.2)
+```
 
 
 # Bibliografía
@@ -137,3 +296,12 @@ En esta sección trataremos de procesar los conjuntos de datos de forma que que 
 [3] RDocumentation, df_status, https://www.rdocumentation.org/packages/funModeling/versions/1.9.3/topics/df_status
 [4] Kaggle, Data Description (Details and Discussion), https://www.kaggle.com/c/ieee-fraud-detection/discussion/101203
 [5] Math Insight, Plotting line graphs in R, https://mathinsight.org/plotting_line_graphs_in_r#:~:text=The%20basic%20plot%20command&text=The%20plot%20command%20accepts%20many,(with%20the%20main%20argument).
+[6] FactoMineR users, MissMDA error message, https://groups.google.com/forum/#!topic/factominer-users/VlAXWYwSpDw
+[7] Stackoverflow, How to get outliers for all the columns in a dataframe in r
+, https://stackoverflow.com/questions/48963595/how-to-get-outliers-for-all-the-columns-in-a-dataframe-in-r
+[8] Documentación sobre la función boxplot, https://www.rdocumentation.org/packages/grDevices/versions/3.6.2/topics/boxplot.stats
+[9] StackExchange, Outlier detection on categorical network log data
+, https://datascience.stackexchange.com/questions/20586/outlier-detection-on-categorical-network-log-data
+
+
+[9] Documenación sobre la librería missMDA, https://cran.r-project.org/web/packages/missMDA/missMDA.pdf
