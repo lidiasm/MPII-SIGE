@@ -16,7 +16,6 @@ set.seed(0)
 # Leemos los datos desde los ficheros
 train_t<-read.csv(file="./train_transaction.csv", header=TRUE, sep=",")
 test_t<-read.csv(file="./test_transaction.csv", header=TRUE, sep=",")
-
 train_i<-read.csv(file="./train_identity.csv", header=TRUE, sep=",")
 test_i<-read.csv(file="./test_identity.csv", header=TRUE, sep=",")
 
@@ -142,150 +141,279 @@ En esta sección procedemos a aplicar diversas técnicas para mejorar la calidad
 
 ## Reducción del número de muestras aleatoriamente
 
-En primer lugar vamos a reducir el número de transacciones mediante la función `sample` [2] de modo que seleccionaremos hasta 50.000 muestras aleatoriamente incluyendo todas las columnas del dataset.
+En primer lugar vamos a reducir el número de transacciones mediante la función `sample` [2] de modo que seleccionaremos hasta 50.000 muestras aleatoriamente incluyendo todas las columnas del dataset. Esta operación es necesaria realizarla previa al procesamiento de la información puesto que es imposible aplicarle las siguientes técnicas en un tiempo razonable.
 
 ```{r}
-# Escogemos 50.000 muestras aleatoriamente de ambos conjuntos
+# Escogemos 50.000 muestras aleatoriamente del conjunto de entrenamiento
 mini_train_t<-train_t[sample(nrow(train_t), 50000), ]
-#mini_test_t<-test_t[sample(nrow(test_t), 30000), ]
 ```
 
-## Reducción del número de variables
+## Variables con demasiados valores perdidos
 
-En este segundo apartado se van a aplicar diversas técnicas para preprocesar los datos del conjunto de modo que eliminemos las columnas que no nos aporten información o aquellas con las que sea difícil trabajar con el objetivo de entrenar varios clasificadores en posteriores secciones. 
-
-### Columnas con más del 70% de NAs
-
-Comenzamos abordando otro de los principales problemas de este conjunto de datos que consiste en la aparición numerosa de valores perdidos o NAs. Si bien uno de los métodos posibles para eliminarlos es predecirlos utilizando alguna técnica que nos permita obtener un valor aproximado a partir de la información que existe en el conjunto, si el número de estos valores es sumamente predominante (70%) es prácticamente imposible intentar aproximarlos. Por lo tanto **los eliminamos** del conjunto basándonos en los *scripts* proporcionados en la asignatura.
+Comenzamos abordando otro de los principales problemas de este conjunto de datos que consiste en la aparición numerosa de valores perdidos o NAs. Si bien uno de los métodos posibles para eliminarlos es predecirlos utilizando alguna técnica que nos permita obtener un valor aproximado a partir de la información que existe en el conjunto, si el número de estos valores es sumamente predominante **(> 50%)** es prácticamente imposible aplicar este método. Por lo tanto, a continuación se desarrolla una función en la que se eliminarán aquellas columnas del dataset que dispongan de un número de valores perdidos superior al 50% de los datos totales. Para ello me he basado en los ejemplos de los *scripts* proporcionados en la asignatura.
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
-library(magrittr)
-library(dplyr)
-library(funModeling)
-estado_mini_train_t<-df_status(mini_train_t)
-# Obtenemos aquellas columnas con más de un 70% de valores perdidos (NAs) a partir del estado de los datos
-na_cols <- estado_mini_train_t %>%
-  filter(p_na > 70) %>%
-  select(variable)
-# Eliminamos las columnas obtenidas
-remove_cols <- bind_rows(
-  list(na_cols)
-)
-# Obtenemos el conjunto de datos reducido 
-mini_train_t_reduc <- mini_train_t %>%
-  select(-one_of(remove_cols$variable))
-```
-
-A continuación comprobamos el número de variables resultante tras aplicar este primer proceso. Tal y como podemos observar hemos pasado de **394 variables a 227**, que si bien siguen siendo muchas solo eliminando las columnas con más de un 70% de NAs hemos conseguido una buena reducción del número de columnas.
-
-### Variables irrelevantes
-
-Analizando más en profundidad la información que nos aportan las columnas desde la propia página del dataset [1] me he percatado de que las columnas **C1-C14 están cifradas**, lo cual quiere decir que si no disponemos de la clave de encriptado no podemos acceder a la información real, y por tanto, disponemos de 14 columnas con información que no significa nada. Por lo tanto, como segundo procedimiento, vamos a eliminarlas de nuestro conjunto de datos. De este modo ahora disponemos de **213 variables**.
-
-```{r}
-# Visualizamos las dimensiones del nuevo conjunto de datos.
-dim(mini_train_t_reduc)
-# Eliminamos las columnas C1-C14 del conjunto resultante.
-mini_train_t_reduc2<-mini_train_t_reduc[,-c(17:30)]
-```
-
-También se consideran variables irrelevantes aquellas que no aportan información útil debido a que sus **valores son muy similares**. Este tipo de columnas no nos ayudan a predecir, posteriormente, si una transacción es o no fraudulenta puesto que independientemente de las muestras su comportamiento no varía. Uno de los métodos por los que se puede decidir si una variable dispone de valores interesantes es mediante la **desviación estándar**. Si esta medida estadística es 0 entonces nos indica que no existe variabilidad en los valores de la columna, y por tanto, esta variable no será útil. He incluido este procesamiento debido al error que siempre obtenía al aplicar el PCA con valores NAs utilizando la librería `missMDA`. Si bien el error es bastante confuso, encontré la solución en este foro [6] en el que se explica este hecho. Asimismo, también se indica que no puede aplicarse el algoritmo PCA a este tipo de variables puesto que con una desviación estándar 0 este no puede decidir si la variable es relevante o no y como resultado provoca una excepción.
-
-Para calcular la desviación estándar es necesario que todas las variables sean numéricas, por lo que previamente pasaremos cada valor a su número correspondiente, incluyendo las columnas categóricas como `ProductCD` a la cual se le asignará un valor diferente a cada una de las etiquetas de sus productos.
-
-```{r}
-# Convertimos todas las variables a variables numéricas
-mini_train_t_reduc3<-mini_train_t_reduc2
-for(i in c(1:ncol(mini_train_t_reduc3))) {
-     mini_train_t_reduc3[,i] <- as.numeric(mini_train_t_reduc3[,i])
+eliminar_columnas_nas<-function(datos) {
+  library(magrittr)
+  library(dplyr)
+  library(funModeling)
+  estado<-df_status(datos)
+  # Obtenemos aquellas columnas con más de un 50% de valores perdidos (NAs) a partir del estado
+  na_cols <- estado %>%
+    filter(p_na > 50) %>%
+    select(variable)
+  # Eliminamos las columnas obtenidas
+  remove_cols <- bind_rows(
+    list(na_cols)
+  )
+  # Obtenemos el conjunto de datos reducido 
+  datos_finales <- datos %>%
+    select(-one_of(remove_cols$variable))
+  # Devolvemos el conjunto resultante
+  datos_finales
 }
-# Eliminamos las columnas que tengan desviación estándar = 0
-mini_train_t_reduc4<-Filter(function(x) sd(x) != 0, mini_train_t_reduc3)
-dim(mini_train_t_reduc4)
-colnames(mini_train_t_reduc4)
 ```
 
-Como podemos apreciar el conjunto de datos resultante es súmamente sorprendente puesto que hemos pasado de tener **213 variables a 11**, lo cual indica que la mayoría de los valores de muchas de las variables parecían no aportar información significativa para el problema. Ahora nuestro dataset cuenta con un número de columnas con el que se puede trabajar de forma más sencilla.
+## Variables irrelevantes
 
-### Correlación variables-isFraud
+Analizando más en profundidad la información que nos aportan las columnas desde la propia página del dataset [1] me he percatado de que las variables **C1-C14 están cifradas**, lo cual quiere decir que si no disponemos de la clave de encriptado no podemos acceder a la información real, y por tanto, disponemos de 14 columnas con información que no significa nada. Por lo tanto, como segundo paso de este preprocesamiento se desarrolla la siguiente función que se encarga de eliminar dichas columnas dado un dataset.
 
-A continuación vamos a analizar qué variables son las más relacionadas con la columna clasificatoria `isFraud`. Cuanto mayor sea el coeficiente de correlación entre una variable y la etiqueta, más nos ayudará dicha variable a predecir si la transacción es fraudulenta o no. Para ello, en primer lugar debemos convertir todas las variables a variables numéricas para poder aplicar la función `correlation_table` tal y como se indica en un *script* de ejemplo de la asignatura.
+```{r}
+eliminar_columnas_encriptadas<-function(datos) {
+  # Eliminamos las columas C1-C14
+  datos_finales<-datos[, -which(colnames(datos) %in% c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"))]
+  # Devolvemos el conjunto resultante
+  datos_finales
+}
+```
+
+También se consideran variables irrelevantes aquellas que no aportan información útil debido a que sus **valores son muy similares**. Este tipo de columnas no nos ayudan a predecir, posteriormente, si una transacción es o no fraudulenta puesto que independientemente de las muestras su comportamiento no varía. Uno de los métodos por los que se puede decidir si una variable dispone de valores interesantes es mediante la **desviación estándar**. Si esta medida estadística es 0 entonces nos indica que no existe variabilidad en los valores de la columna, y por tanto, esta variable no será útil. 
+
+Para realizar este preprocesamiento vamos a hacer uso de la función `nearZeroVar` [7] que calcula el número de valores únicos y su frecuencia de aparición. De este modo obtendremos aquellas variables cuya desviación estándar sea 0 o cercana a dicho valor. Previo a su aplicación, es necesario transformar todas las variables a variables numéricas para poder calcular la desviación estándar. Para las columnas categóricas se asignará a cada etiqueta un único valor que la represente.
+
+```{r}
+eliminar_columnas_sd<-function(datos, eliminar_todas) {
+  # Convertimos todas las variables a variables numéricas
+  for(i in c(1:ncol(datos))) {
+       datos[,i] <- as.numeric(datos[,i])
+  }
+  # Calculamos el número de variables con desviación estándar cercana o igual a 0.
+  library(caret)
+  nz<-nearZeroVar(datos, names = TRUE, saveMetrics = TRUE)
+  # Desviación estándar = 0
+  nz0<-nz[nz[,"zeroVar"] > 0, ]
+  nz0
+  # Desviación estándar cercana a 0
+  nz_cercano0<-nz[nz[,"zeroVar"] + nz[,"nzv"] > 0, ]
+  head(nz_cercano0, 5)
+  # Eliminamos las variables con desviación estándar = 0
+  datos_finales<-datos[, -which(colnames(datos) %in% rownames(nz0))]
+  
+  # Si eliminar_todas=TRUE entonces también eliminamos las variables con sd cercana a 0
+  if (eliminar_todas == TRUE) {
+    datos_finales<-datos_finales[, -which(colnames(datos_finales) %in% rownames(nz_cercano0))]
+  }
+  # Devolvemos el conjunto resultante
+  datos_finales
+}
+```
+
+## Tratamiento de valores perdidos
+
+En este apartado procedemos a tratar los numerosos valores perdidos que contiene el conjunto de datos. Si bien existen multitud de técnicas para aplicarle a este tipo de datos, yo voy a considerar las siguientes:
+
+* **Eliminación de NAs**. Esta puede ser la técnica más drástica para tratar los valores perdidos. Para llevarla a cabo vamos a aplicar la función `na.omit()` que eliminará todos los registros que contentan este tipo de valores.
+* **Imputación de NAs**. Al contrario que la anterior, esta técnica más sofisticada es una de las más utilizadas según he estado investigando. Para aplicarla existen varias librerías pero al parecer la más popular es `mice` debido a las múltiples operaciones que puede llevar a cabo para asignar un valor a cada NA [8]. Dependiendo de la naturaleza de los datos, existen métodos específicos aunque también dispone de métodos generales aplicables a cualquier tipo de dato.
+
+A continuación se expone el código de las funciones asociadas a las dos técnicas explicadas anteriormente.
+
+```{r}
+eliminar_nas<-function(datos) {
+  datos_finales<-na.omit(datos)
+  # Devolvemos el conjunto resultante
+  datos_finales
+}
+###
+imputar_nas<-function(datos, imputs, iters, metodo) {
+  library(mice)
+  # Especificamos el número de imputaciones, el número de iteraciones por imputación y el método a utilizar para imputar los NAs
+  modelo_mice<-mice(minitraint_sd, m=imputs, maxit=iters, method=metodo)
+  # Obtenemos el conjunto de datos imputado
+  datos_imputados<-complete(modelo_mice)
+  # Comprobamos el número de NAs que han quedado
+  anyNA(datos_imputados)
+  # Devolvemos el conjunto resultante
+  datos_imputados
+}
+```
+
+## Correlación
+
+En esta sección vamos a estudiar la **correlación existente entre las variables y la columna a predecir**, que en el caso de este *dataset* es `isFraud`, y posteriormente analizaremos cuán **relacionadas se encuentran las variables entre sí**. El objetivo es, por un lado, conocer si existe alguna variable o grupo de variables que expliquen el comportamiento de la variable categórica a predecir. Mientras que por otro lado queremos conocer si existen variables muy correladas entre sí de manera que podamos reducir la dimensionalidad eliminando aquellas cuyo coeficiente de correlación sea muy alto, ya que este sería un indicio de dichas columnas aportan la misma información.
+
+Para el primer estudio vamos a aplicar la función `correlation_table` tal y como se ejemplifica en uno de los *scripts* proporcionados en la asignatura. Como precondición para calcular los coeficientes de correlación, es necesario que las columnas dispongan solo de valores numéricos. 
+De igual forma, esta condición es necesaria para el segundo análisis que involucra a todas las variables, para el cual usaremos, en primer lugar, la función `cor` que se encargará de calcular los coeficieintes de correlación entre todas las variables del conjunto. Una vez dispongamos de esta matriz, aplicaremos la función `findCorrelation` [9] que nos ayudará a identificar aquellas variables que tienen un coeficiente de correlación especificado como argumento. De este modo se puede personalizar el nivel de exigencia con el que eliminar las columnas correladas.
+
+A continuación se presentan las funciones asociadas a los dos estudios de correlación que se realizarán a posteriori.
 
 ```{r message=FALSE, warning=FALSE}
-library(funModeling)
-# Calculamos los coeficientes de correlación en torno a la variable clasificatoria
-tabla_corr<-correlation_table(mini_train_t_reduc4, target='isFraud')
-tabla_corr
+correlacion_fraude<-function(datos) {
+  library(funModeling)
+  # Calculamos los coeficientes de correlación en torno a la variable clasificatoria
+  tabla_corr<-correlation_table(datos, target='isFraud')
+  head(tabla_corr, 10) 
+}
+###
+correlacion_variables<-function(datos, max_corr) {
+  library(caret)
+  # Calculamos los coeficientes de correlación todas-todas las variables.
+  coefs<-cor(datos)
+  # Mostramos las columnas con un coeficiente de correlación superior al 90%.
+  ## Excluimos las filas con valores perdidos porque si no esta función no se puede aplicar.
+  cols_corr<-findCorrelation(na.omit(coefs), cutoff=max_corr)
+  cols_corr
+  # Eliminamos las columnas resultantes del dataset
+  datos_finales<-datos[-c(cols_corr)]
+  # Devolvemos el conjunto resultante
+  datos_finales
+}
 ```
 
-Como podemos apreciar la única variable relacionada con la variable clasificatoria es ella misma, mientras que el resto de variables apenas se encuentran correladas con la misma. Esto significa que no existe un claro grupo de variables que expliquen si una transacción es fraudulenta o no, por lo que con estos resultados a priori no podemos aplicar ninguna reducción adicional.
+## Outliers
+
+Los *outliers* son datos cuyos valores están caracterizados por encontrarse fuera del rango normalizado para el atributo. En otras palabras, este tipo de datos disponen de valores muy diferentes a los del resto del conjunto y por ende pueden afectar a la capacidad de generalización de los modelos entrenados. Por este motivo, esta sección se va a dedicar al estudio y tratamiento de este tipo de valores. Para el análisis me he inspirado en este ejemplo [10] en el que se hace uso de la función `boxplot` [11], con la que se calculan los valores situados fuera del rango particular de cada variable. De este modo podremos conocer los *outliers* de cada una de las columnas.
+
+```{r message=FALSE, warning=FALSE}
+estudio_outliers<-function(datos) {
+  library(magrittr)
+  library(dplyr)
+  library(tidyr)
+  library(purrr)
+  # Calculamos los outliers de todas las variables del conjunto de datos.
+  outliers<-datos %>%
+        map(~ boxplot.stats(.x)$out) 
+  # Mostramos los 10 primeros resultados
+  head(summary(outliers), 10) 
+}
+```
+
+Una vez disponemos de información acerca de los *outliers* existentes en el conjunto de datos, procedemos a estudiar los diferentes tratamientos que se les pueden aplicar. Dentro del ejemplo mecionado anteriormente se presentan varias técnicas, de las cuales he escogido las dos más interesantes a mi parecer: **la imputación mediante una determinada fórmula y la predicción de los valores**. La primera técnica consiste en reemplazar aquellos valores que se sitúen fuera del rango de los cuantiles 25 y 75, por el cuantil 5 o el 95, respectivamente. El objetivo es transformar los *outliers* que se encuentran por debajo del rango en el valor más pequeño que se encuentra dentro de dicho intervalo, y realizar el mismo procedimiento con los que se encuentran por encima del rango pero, en este caso, asignando el mayor valor posible.
+
+La segunda técnica consiste en convertir todos los *outliers* detectados en valores NA para posteriormente imputarlos. Como ya disponemos de una función que se encarga de tratar los valores perdidos, será esa que reutilizaremos para predecir este tipo de valores y así probar esta segunda técnica. A continuación se presentan las funciones asociadas a los dos tratamientos explicados anteriormente.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+outliers_formula<-function(datos) {
+  
+}
+####
+outliers_prediccion<-function(datos, imputs, iters, metodo) {
+  library(magrittr)
+  library(dplyr)
+  library(tidyr)
+  library(purrr)
+  # Eliminamos la columna isFraud para que no se le aplique este procedimiento.
+  datos_sin_fraud<-datos[, -which(names(datos) %in% c("isFraud"))]
+  # Transformamos los valores outliers en valores perdidos (NAs)
+  datos_nas<-as.data.frame(apply(datos_sin_fraud, 2, function(row){row[row %in% boxplot(row, plot = FALSE)$out] = NA; row})) 
+  datos_finales<-imputar_nas(datos_nas, imputs, iters, metodo)
+  # Devolvemos el dataset resultante
+  datos_finales
+}
+```
+
+## Selección de variables
+
+El objetivo de este apartado consiste en reducir la dimensionalidad del *dataset* en lo referente a las variables que nos permiten predecir la columna categórica `isFraud`. Si bien existen diferentes técnicas para llevar este procedimiento a cabo, vamos a utilizar una de las más populares denominada **Análisis de Componentes Principales (PCA)**. Su procedimiento consiste en realizar diversas combinaciones lineales de los atributos del dataset de modo que nos indique cuáles son los más relevantes a considerar. Este tipo de técnicas se deben aplicar solo cuando el número de variables es considerablemente amplio, puesto que si lo llevamos a cabo con un número de columnas razonable podemos perder información al eliminar algunas de ellas. 
+
+Si bien existen dos paquetes principales para aplicar el PCA con y sin valores perdidos, vamos a hacer uso de este último puesto que en esta sección se presupone que el conjunto de datos se encuentra preprocesado e imputado. Asimismo, el PCA se puede ver altamente influido por aquellas variables con una mayor varianza lo que supondría su predominio sobre el resto de columnas. Es por ello por lo que el planteamiento de esta técnica va a ser similar al de este ejemplo [12]. En él se utiliza la función `prcomp()` [13] que previo a la aplicación del algoritmo PCA, es capaz de analizar las variables y aplicar procedimientos de **centrado y escalado** para que su media sea 0 y su desviación estándar 1.
+
+**HAY GRÁFICOS EN LOS EJEMPLOS BUSCADOS Y EN EL TRABAJO3 - Al aplicar finalmente el algoritmo PCA (que lo haremos directament con \textbf{preProcess()}), obtendremos un conjunto reducido de "atributos". Lo expresamos entre comillas, ya que en realidad, estos valores son combinaciones lineales de los atributos iniciales, por tanto, como resultado habremos conseguido reducir en dimensionalidad a costa de tener datos mucho menos interpretables.**
+**APLICAREMOS LUEGO PREPROCESS Y PREDICT PARA OBTENER EL CONJUNTO DE DATOS REDUCIDO?????????**
+
+```{r}
+```
+
+## Balanceo de la clase a predecir
+
+En esta última sección se tratará el desbalanceo de la clase `isFraud` con la que debemos entrenar los modelos para poder predecir si una transacción es fraudulenta o no. Como hemos podido observar en el análisis exploratorio, la gran mayoría de muestras son transacciones no fraudulentas (cerca del 96%) mientras que la clase minoritaria es la asociada a las transacciones fraudulentas. Este tipo de problemas es bastante común, pero en el caso de este dataset **es súmamente desproporcionado**. Para intentar paliar este inconveniente se van a aplicar dos de las técnicas más populares: **downsampling y (?)**. En el primer caso se obtendrá un subconjunto de datos en el que se iguale el número de muestras de ambas clases, es decir, se escogerán tantas muestras de transacciones no fraudulentas al azar como ejemplos de transacciones fradulentas haya [downsample]. Con esta técnica el conjunto de datos se reducirá drásticamente, lo cual provocará una serie de consecuencias que analizaremos posteriormente al entrenar los modelos.
+
+```{r}
+downsampling<-function(datos) {
+  library(caret)
+  # Obtenemos las etiquetas a predecir
+  etiquetas<-factor(datos$isFraud)
+  # Downsampling para igualar ambas clases
+  datos_finales<-downSample(datos, etiquetas, yname='isFraud')
+  # Comprobamos que ambas clases se encuentran balanceadas
+  count(datos_finales, isFraud)
+  # Devolvemos los datos resultantes
+  datos_finales
+}
+
+```
+
+
+
+
+
+# Modelos
+
+## Random Forest
+
+
+# CONCLUSIONES
+------------------------------------------------------------------------------------------------------
+
+### Variables con valores perdidos
+A continuación comprobamos el número de variables resultante tras aplicar este primer proceso. Tal y como podemos observar hemos pasado de **394 variables a 221**, que si bien siguen siendo muchas solo eliminando las columnas con más de un 50% de NAs hemos conseguido una buena reducción del número de columnas.
+
+### Variables irrelevantes
+La primera lista con dos columnas son aquellas variables cuya desviación estándar es **igual a 0**. Esto lo podemos comprobar fácilmente observando el porcentaje de valores únicos que también es 0. Estudiando más a fondo sendas variables he podido observar que `M1` cuenta con valores perdidos y unos, mientras que los valores de `V305` son unos casi en su totalidad. Por lo tanto procedemos a eliminarlas del conjunto de datos.
+
+La siguiente lista con variables muestra aquellas columnas con una desviación estándar **cercana a 0**. Pero ¿nos conviene eliminarlas todas, obviando la variable a predecir? Según este artículo [8] las variables con desviación estándar cercana a 0 pueden sernos de utilidad y no conviene eliminarlos todos de una vez. Asimismo, también he experimentado este problema en la asignatura Aprendizaje Automático donde los clasificadores aportaban mejores resultados no eliminando este tipo de variables. Por lo que por el momento, seguirán estando en el conjunto de datos.
+
+### Correlación entre variables
+
+En primer lugar vamos a analizar qué variables son las más **relacionadas con la columna clasificatoria `isFraud`**. Cuanto mayor sea el coeficiente de correlación entre una variable y la etiqueta, más nos ayudará dicha variable a predecir si la transacción es fraudulenta o no. 
+
+
+Si bien solo se muestran las 10 primeras filas puesto que aún hay muchas variables, examinándola particularmente la única variable relacionada con la variable clasificatoria es ella misma, mientras que el resto de variables apenas se encuentran correladas con la misma. Esto significa que no existe un claro grupo de variables que expliquen si una transacción es fraudulenta o no, por lo que con estos resultados a priori no podemos aplicar ninguna reducción adicional.
+
+A continuación vamos a realizar un estudio de **correlación entre todas las variables**. El objetivo es identificar si existen variables estrechamente relacionadas entre sí que puedan afectar, posteriormente, a los futuros clasificadores que vamos a entrenar. 
+
+Tal y como podemos observar, existen 17 columnas con un **coeficiente de correlación superior al 90%**. Por lo general esto nos indica que todas ellas aportan la misma información, y por ende, si las dejamos en el conjunto de datos tendremos un montón de columnas proporcionando información redundante.
 
 ### Outliers
+Como podemos comprobar, la mayoría de las variables cuenta con varios registros con valores *outliers* por lo que será relevante tratarlos de algún modo antes de entrenar los clasificadores. También es necesario destacar que algunas de ellas son variables categóricas cuyas etiquetas se han transformado en valores numéricos. Por lo que tanto variables numéricas como categóricas disponen de *outliers*. 
+Investigando un poco acerca de los mejores métodos para tratar con este tipo de valores [10], pienso que uno de los más efectivos consiste en transformar estos *outliers* en valores perdidos o NAs. El objetivo es predecirlos utilizando alguna técnica que permita entrenar un modelo predictivo capaz de asignar un valor a cada uno de esos NAs que representan los *outliers*. Este procedimiento se aplicará a todas las variables **excepto a la variable `isFraud`** puesto que su tratamiento será realizado particularmente considerando que es la variable que tenemos que predecir.
 
-Los *outliers* son datos cuyos valores están caracterizados por encontrarse fuera del rango normalizado para el atributo. En otras palabras, este tipo de datos disponen de valores muy diferentes a los del resto del conjunto y por ende pueden afectar a la capacidad de generalización de los modelos entrenados. Por ello, a continuación vamos a realizar un estudio acerca de los *outliers* en el conjunto de entrenamiento. Para desarrollar este estudio me he inspirado en el siguiente ejemplo [7] en el que mediante la función `boxplot` [8] se calculan los valores situados fuera del rango de cada variable. 
+Según he estado investigando en diversas fuentes, al transformar los *outliers* a valores NA quizás se hayan generado demasiados valores perdidos en ciertas columnas y por tanto le ha sido imposible a la función imputarlos, puesto que no cuenta con información suficiente como para poder asignarles un valor a cada uno de ellos. Para confirmar esta teoría he visualizado un resumen de los datos antes de transformar los *outliers* a NA con la función `summary`. Si bien no voy a poner los resultados puesto que ocupan bastante espacio, cabe destacar que todas las variables que han resultado tener NA tras este proceso disponen de una menor variabilidad. En ciertos casos este suceso llega al extremo de dejar a la variable con un único valor.
+-------------------------------------------------------------------------------------------------------
 
-```{r}
-library(magrittr)
-library(dplyr)
-library(tidyr)
-library(purrr)
-# Calculamos los outliers de todas las variables del conjunto de datos.
-outliers<-mini_train_t_reduc4 %>%
-      map(~ boxplot.stats(.x)$out) 
-# Mostramos los viente primeros resultados
-summary(outliers)
-```
-
-Como podemos comprobar, la mayoría de las variables cuentan con varios *outliers*. No obstante, la gran mayoría de las variables son variables categóricas cuyas etiquetas se han transformado en valores numéricos. Investigando acerca de si se debían de tratar de forma diferente por el hecho de disponer de un conjunto limitado de valores, encontré esta sugerencia [9] consistente en calcular la frecuencia de cada una de las etiquetas de una variable determinada. De este modo podremos identificar los *outliers* con las frecuencias minoritarias en relación al tamaño del conjunto de datos, que en mi caso es de 50.000. Para realizar el cálculo vamos a hacer uso de la librería `plyr`, en particular de la función `count` que nos devuelve el número de apariciones de cada etiqueta para una variable dada.
-
-```{r}
-library(plyr)
-# Calculamos el número de apariciones de cada etiqueta para cada variable categórica.
-frecuencias<-apply(mini_train_t_reduc4[c(5:11)], 2, count)
-
-qnt <- quantile(mini_train_t_reduc4$TransactionAmt, probs=c(.25, .75), na.rm = T)
-H <- 1.5 * IQR(mini_train_t_reduc4$TransactionAmt, na.rm = T)
-length(mini_train_t_reduc4$TransactionAmt[mini_train_t_reduc4$TransactionAmt < (qnt[1] - H)])
-mini_train_t_reduc4$TransactionAmt[mini_train_t_reduc4$TransactionAmt > (qnt[2] + H)]
-```
-
-
-### PCA con valores perdidos
-
-En esta sección se pretende reducir al máximo el número de variables predictoras con las que posteriormente entrenar los futuros modelos. Para ello uno de los algoritmos más conocidos es el **PCA** que realiza un análisis de los componentes principales para devolver aquellas variables que aportan una mayor cantidad de información.
-
-
-Falta por realizar un último paso, que consiste en el análisis de componentes principales (PCA) con vistas
-a reducir la dimensionalidad de nuestros datos, ya que a pesar de todas las transformaciones de los datos,
-seguimos teniendo muchos atributos y buscamos reducir este tamaño.
-Este algoritmo es un filtro (selector de características) no supervisado, y tiene la desventaja de que es sensible
-a las distancias (datos y valores grandes), por lo que es necesario un centrado y escalado previo a su ejecución.
-Primero centramos los datos (restandoles la media aritmética) y después escalamos dividiendo entre el valor
-de la desviación típica.
-Si bien he intentado aplicar la librería `missMDA`[6] que está especialmente orientada en aplicar la técnica PCA para reducir el número de variables que intervienen, he obtenido el mismos error tras varios días probando: `Error in eigen(crossprod(X, X), symmetric = TRUE) : infinite or missing values in 'x'`.
-
-- Explicar el error 
 
 
 ```{r}
-### QUITAR VARIABLES CON DESVIACIÓN ESTÁNDAR 0 (REFERENCIA) ->>> el por qué está en la conver de andrea
-prueba<-Filter(function(x) sd(x) != 0, prueba)
-library(missMDA)
-nb<-estim_ncpPCA(prueba, method.cv = "Kfold", verbose = FALSE)
-
-#prueba<-do.call(data.frame,lapply(prueba, function(x) replace(x, is.infinite(x),NA)))
-#nb = estim_ncpPCA(prueba,ncp.max=5)
-#nb <- estim_ncpPCA(prueba, method.cv = "Kfold", verbose = FALSE)
-#nb <- imputePCA(prueba)
-
-############ IMPUTACIÓN DE VALORE SPERDIDOS
-# library(mice)
-# imputation <- mice(mini_train_t_reduc, m=1, maxit=500, method='cart', seed=500)
+# library(plyr)
+# # Calculamos el número de apariciones de cada etiqueta para cada variable categórica.
+# frecuencias<-apply(mini_train_t_reduc4[c(5:11)], 2, count)
 # 
-# imputation
-# complete(imputation)
-# plot(imputation)
-# stripplot(imputation, pch = 20, cex = 1.2)
+# 
+# 
+# library(mice)
+# prueba<-mini_train_t_reduc3
+# miceMod <- mice(prueba, method="rf")  # perform mice imputation, based on random forests.
+# miceOutput <- complete(miceMod)  # generate the completed data.
+# anyNA(miceOutput)
+# 
+# 
+# 
+# 
+# qnt <- quantile(mini_train_t_reduc4$ProductCD, probs=c(.25, .75), na.rm = T)
+# H <- 1.5 * IQR(mini_train_t_reduc4$ProductCD, na.rm = T)
+# mini_train_t_reduc4[mini_train_t_reduc4$ProductCD < (qnt[1] - H)]
+# mini_train_t_reduc4$ProductCD[mini_train_t_reduc4$ProductCD > (qnt[2] + H)]
+# 
+# resultado<-mini_train_t_reduc4[mini_train_t_reduc4$ProductCD < (qnt[1] - H)]+mini_train_t_reduc4$ProductCD[mini_train_t_reduc4$ProductCD > (qnt[2] + H)]
 ```
 
 
@@ -297,11 +425,26 @@ nb<-estim_ncpPCA(prueba, method.cv = "Kfold", verbose = FALSE)
 [4] Kaggle, Data Description (Details and Discussion), https://www.kaggle.com/c/ieee-fraud-detection/discussion/101203
 [5] Math Insight, Plotting line graphs in R, https://mathinsight.org/plotting_line_graphs_in_r#:~:text=The%20basic%20plot%20command&text=The%20plot%20command%20accepts%20many,(with%20the%20main%20argument).
 [6] FactoMineR users, MissMDA error message, https://groups.google.com/forum/#!topic/factominer-users/VlAXWYwSpDw
-[7] Stackoverflow, How to get outliers for all the columns in a dataframe in r
-, https://stackoverflow.com/questions/48963595/how-to-get-outliers-for-all-the-columns-in-a-dataframe-in-r
-[8] Documentación sobre la función boxplot, https://www.rdocumentation.org/packages/grDevices/versions/3.6.2/topics/boxplot.stats
-[9] StackExchange, Outlier detection on categorical network log data
+[7] Documentación sobre la función nearZeroVar, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/nearZeroVar
+[8] Documentación sobre la función mice, https://www.rdocumentation.org/packages/mice/versions/2.25/topics/mice
+[9] Documentación acerca de la función findCorrelation, https://rdrr.io/rforge/caret/man/findCorrelation.html
+[10] r-statistics.co, Selva Prabhakaran, Outlier Treatment, http://r-statistics.co/Outlier-Treatment-With-R.html
+[11] Documentación sobre la función boxplot, https://www.rdocumentation.org/packages/grDevices/versions/3.6.2/topics/boxplot.stats
+[12] RPubs, Joaquín Amat Rodrigo, Análisis de Componentes Principales (Principal Component Analysis, PCA) y t-SNE, https://rpubs.com/Joaquin_AR/287787
+[13] Documentación acerca de la función prcomp, https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/prcomp
+[] Documentación acerca de la función downSample, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/downSample
+
+
+
+
+[8] R-bloggers, thiagogm, Near-zero variance predictors. Should we remove them?, https://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/
+
+[10] r-statistics.co, Selva Prabhakaran, Outlier Treatment, http://r-statistics.co/Outlier-Treatment-With-R.html
+
+
+-------------------------------------------------------------------------------------------------------------
+# BIBLIO ÚTIL
+* Para calcular las frecuencias de las clases y tratar los outliers de las variables categóricas: StackExchange, Outlier detection on categorical network log data
 , https://datascience.stackexchange.com/questions/20586/outlier-detection-on-categorical-network-log-data
 
-
-[9] Documenación sobre la librería missMDA, https://cran.r-project.org/web/packages/missMDA/missMDA.pdf
+* Para aplicar el PCA con valores NA: Documenación sobre la librería missMDA, https://cran.r-project.org/web/packages/missMDA/missMDA.pdf
