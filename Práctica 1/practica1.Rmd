@@ -127,7 +127,8 @@ Analizando más en profundidad la información que nos aportan las columnas desd
 ```{r}
 eliminar_columnas_encriptadas<-function(datos) {
   # Eliminamos las columas C1-C14
-  datos_finales<-datos[, -which(colnames(datos) %in% c("C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"))]
+  datos_finales<-datos[, -which(colnames(datos) %in% c("C1", "C2", "C3", "C4", 
+   "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"))]
   # Devolvemos el conjunto resultante
   datos_finales
 }
@@ -180,7 +181,8 @@ eliminar_nas<-function(datos) {
 
 imputar_nas<-function(datos, imputs, iters, metodo) {
   library(mice)
-  # Especificamos el número de imputaciones, el número de iteraciones por imputación y el método a utilizar para imputar los NAs
+  # Especificamos el número de imputaciones, el número de iteraciones
+  # por imputación y el método a utilizar para imputar los NAs
   modelo_mice<-mice(minitraint_sd, m=imputs, maxit=iters, method=metodo)
   # Obtenemos el conjunto de datos imputado
   datos_imputados<-complete(modelo_mice)
@@ -304,7 +306,8 @@ downsampling<-function(datos) {
   etiquetas<-factor(datos$isFraud)
   # Downsampling para igualar ambas clases
   set.seed(32)
-  datos_finales<-downSample(datos[, -which(names(datos) %in% c("isFraud"))], etiquetas, yname='isFraud')
+  datos_finales<-downSample(datos[, -which(names(datos) %in% c("isFraud"))],
+      etiquetas, yname='isFraud')
   # Comprobamos que ambas clases se encuentran balanceadas
   count(datos_finales, isFraud)
   # Devolvemos los datos resultantes
@@ -387,7 +390,8 @@ Aplicando algunas técnicas para conocer la importancia de las 289 variables que
 ```{r}
 # Eliminar registros con valores NA
 minitrain_m1<-eliminar_nas(minitrain_m1)
-# Volvemos a eliminar las nuevas columnas que han surgido con desviación estándar=0 tras quitar valores perdidos
+# Volvemos a eliminar las nuevas columnas que han surgido con desviación estándar=0
+# tras quitar valores perdidos
 minitrain_m1<-eliminar_columnas_sd(minitrain_m1, FALSE)
 # Dimensión del conjunto resultante
 cat("\nSegunda tanda para eliminar variables con sd=0\n")
@@ -434,7 +438,7 @@ Como ya disponemos de un conjunto de variables más reducido, **no vamos a aplic
 
 Una vez disponemos del conjunto de datos preprocesado, lo dividimos en un conjunto de entrenamiento y test para validar los modelos que vamos a entrenar a continuación con el objetivo de calcular un mayor número de medidas que la tasa de error que solo nos devuelve Kaggle. Para ello vamos a separar el **70% de los datos para entrenamiento y el 30% dedicado a la validación de los modelos**.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Downsampling para balancear la clase `isFraud`
 minitrain_m1_final<-downsampling(minitrain_m1_out)
 cat("Conjunto de datos tras downsampling\n")
@@ -491,27 +495,19 @@ Si además visualizamos la curva ROC del modelo entrenado con Random Forest pode
 # Bibliografía
 
 [1] Kaggle, IEEE-CIS Fraud Detection, https://www.kaggle.com/c/ieee-fraud-detection/data
+
 [2] RDocumentation, df_status, https://www.rdocumentation.org/packages/funModeling/versions/1.9.3/topics/df_status
+
 [3] Kaggle, Data Description (Details and Discussion), https://www.kaggle.com/c/ieee-fraud-detection/discussion/101203
+
 [4] Andrie de Vries and Joris Meys, How to Take Samples from Data in R, https://www.dummies.com/programming/r/how-to-take-samples-from-data-in-r/
+
 [5] Documentación sobre la función nearZeroVar, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/nearZeroVar
+
 [6] Documentación sobre la función mice, https://www.rdocumentation.org/packages/mice/versions/2.25/topics/mice
+
 [7] Documentación acerca de la función findCorrelation, https://rdrr.io/rforge/caret/man/findCorrelation.html
+
 [8] r-statistics.co, Selva Prabhakaran, Outlier Treatment, http://r-statistics.co/Outlier-Treatment-With-R.html
+
 [9] Documentación sobre la función boxplot, https://www.rdocumentation.org/packages/grDevices/versions/3.6.2/topics/boxplot.stats
-
-
-[] Documentación acerca de la función downSample, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/downSample
-[] Documentación acerca de la función createDataPartition, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/createDataPartition
-[] Documentación de la función confusionMatrix, https://www.rdocumentation.org/packages/caret/versions/3.45/topics/confusionMatrix
-
-
-------------------------------------------------------------------------------------------------
-
-FactoMineR users, MissMDA error message, https://groups.google.com/forum/#!topic/factominer-users/VlAXWYwSpDw
-
-RPubs, Joaquín Amat Rodrigo, Análisis de Componentes Principales (Principal Component Analysis, PCA) y t-SNE, https://rpubs.com/Joaquin_AR/287787
-
-Documentación acerca de la función prcomp, https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/prcomp
-
- R-bloggers, thiagogm, Near-zero variance predictors. Should we remove them?, https://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/
