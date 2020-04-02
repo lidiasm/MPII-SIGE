@@ -461,7 +461,9 @@ calidad_nb<-calidad_modelo(modelo_nb, datos$test, datos$test$isFraud)
 confusionMatrix(calidad_nb$conf, positive='1')
 ```
 
-Como podemos observar en los resultados este modelo ha obtenido aproximadamente un **77% de precisión** que si bien en cifra no está mal, observando la matriz de confusión podemos comprobar que se equivoca 1/3 de las veces puesto que el conjunto de validación solo contaba con 161 muestras. Por lo tanto, podemos determinar que la **reducción tan brusca de los datos** que se ha realizado ha mermado bastante la capacidad de entrenar un clasificador competente así como poder validarlo con un conjunto de datos suficientemente amplio como para tener más en cuenta estos resultados. 
+Como podemos observar hemos utilizado la función `confusionMatrix` [10] para obtener más información acerca del modelo a partir de la propia matriz de confusión. Si bien la documentación oficial de la función no aporta información acerca de los atributos mostrados, he encontrado un ejemplo [11] en el que se detallan cada uno de ellos. En primer lugar destacamos que la **precisión del modelo es de un 77%**, valor que se encuentra dentro de un intervalo al 95%, lo que nos asegura casi con totalidad que la precisión del modelo mostrada es verídica. Por otro lado podemos observar en el atributo *No Information Rate* cómo la función ha detectado el balanceado de la clase `isFraud` puesto que este valor indica que no existe una mayor representación de una clase y por ende el clasificador no se ve influido por una clase mayoritaria.
+
+Si nos fijamos en un campo denominado *Kappa* podemos conocer cuán bueno es el clasificador entrenado frente a otro que escoge las etiquetas al azar. Investigando más acerca de la repercusión de este valor [12] se considera que un modelo es confiable cuando este valor se encuentra **por encima del 80%**. En este caso podemos apreciar que nuestro valor es del 55%, lo que significa que **falla en la mitad de las ocasiones**. Tal y como se explica en la fuente [12], la gravedad de estos resultados dependen del ámbito en el que se encuentre y considerando la capacidad de detectar transacciones fraudulentas, podemos determinar que **este clasificador no es para nada competitivo** dentro de un ámbito real.
 
 ```{r}
 # Dibujamos la curva ROC del modelo de Naive Bayes
@@ -483,7 +485,7 @@ calidad_rf<-calidad_modelo(modelo_rf, datos$test, datos$test$isFraud)
 confusionMatrix(calidad_rf$conf, positive='1')
 ```
 
-Tal y como podemos observar este modelo ha obtenido aproximadamente un **84% de precisión**, 7 puntos más que el anterior modelo. Si bien ambos han sido entrenados y validados usando los mismos conjuntos de datos, en este modelo se puede apreciar una mayor robustez frente a la escasez de datos de entrenamiento puesto que los resultados son notablemente mejores.
+Tal y como podemos observar este modelo cuenta con una **precisión del 84%**, 7 puntos más que el modelo anterior. Si observamos, además, la matriz de confusión podemos apreciar una disminución de los falsos positivos lo que acompaña a esta mejora en la tasa de aciertos. Sin embargo, analizando de nuevo el resto de atributos según [12] en este caso el campo *Kappa* muestra aproximadamente un **69% de acierto** con respecto al clasificador entrenado por el método en cuestión. Si bien sigue sin llegar al recomendable 80%, podemos afirmar que este modelo muestra una mayor confiabilidad de cara a utilizarlo en un ámbito real comparado con el anterior. Aún así, con **este preprocesamiento ninguno de los modelos entrenados son competitivos**. 
 
 ```{r}
 # Dibujamos la curva ROC del modelo de Naive Bayes
@@ -491,6 +493,10 @@ curva_roc(calidad_rf$preds, datos$test$isFraud)
 ```
 
 Si además visualizamos la curva ROC del modelo entrenado con Random Forest podemos apreciar una mayor amplitud, lo que produce un **área mayor bajo la curva**, por lo que bajo el mismo preprocesamiento de los conjuntos esta técnica ha conseguido un clasificador con una mejor capacidad de generalización frente a la técnica Naive Bayes utilizada para el primer modelo.
+
+## Modelos del segundo preprocesamiento
+
+
 
 # Bibliografía
 
@@ -511,3 +517,10 @@ Si además visualizamos la curva ROC del modelo entrenado con Random Forest pode
 [8] r-statistics.co, Selva Prabhakaran, Outlier Treatment, http://r-statistics.co/Outlier-Treatment-With-R.html
 
 [9] Documentación sobre la función boxplot, https://www.rdocumentation.org/packages/grDevices/versions/3.6.2/topics/boxplot.stats
+
+[10] Documentación de la función confusionMatrix, https://www.rdocumentation.org/packages/caret/versions/3.45/topics/confusionMatrix
+
+[11] DEGREES OF BELIEF, COMMON EVALUATION MEASURES FOR CLASSIFICATION MODELS, https://degreesofbelief.roryquinn.com/common-evaluation-measures-for-classification-models
+
+[12] DATANOVIA, INTER-RATER RELIABILITY MEASURES IN R: Cohen’s Kappa in R: For Two Categorical Variables
+, https://www.datanovia.com/en/lessons/cohens-kappa-in-r-for-two-categorical-variables/#interpretation-magnitude-of-the-agreement
