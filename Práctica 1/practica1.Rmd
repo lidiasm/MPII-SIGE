@@ -87,12 +87,9 @@ library(magrittr)
 minitrain_700<-train %>% filter(TransactionAmt < 700)
 cat("Dimensiones al quitar transacciones > 700 USD\n")
 dim(minitrain_700)
-# Escogemos 50.000 muestras aleatoriamente del conjunto de entrenamiento
-set.seed(32)
-minitrain<-minitrain_700[sample(nrow(minitrain_700), 50000), ]
 ```
 
-Tal y como podemos comprobar, hemos conseguido reducir casi 1000 registros. Sin embargo, este conjunto de datos sigue siendo inmanejable por lo que es necesario aplicar una reducción aún mayor. Para ello vamos a realizar un muestreo aleatorio utilizando la función `sample` [4]. El objetivo es seleccionar 50.000 individuos de forma aleatoria incluyendo todas las columnas del dataset. De este modo podremos obtener un conjunto de datos más sencillo con el que comenzar a trabajar.
+Tal y como podemos comprobar, hemos conseguido reducir casi 1.000 registros. Al sufrir tan poca variación realmente **no creo que merezca la pena eliminar 1.000 muestras** del conjunto puesto que este hecho no supone un cambio significativo en el entrenamiento de los modelos. Asimismo, dependiendo de las combinaciones de procesamientos que se hagan del conjunto para entrenar los modelos, se evaluará la posibilidad de reducir el número de registros en caso de que las técnicas utilizadas tarden mucho tiempo en devolvernos un clasificador. 
 
 ## Variables con demasiados valores perdidos
 
@@ -120,29 +117,19 @@ eliminar_columnas_nas<-function(datos) {
 }
 ```
 
-## Variables irrelevantes
+## Desviación estándar de las variables
 
-Analizando más en profundidad la información que nos aportan las columnas desde la propia página del dataset [1] me he percatado de que las variables **C1-C14 están cifradas**, lo cual quiere decir que si no disponemos de la clave de encriptado no podemos acceder a la información real, y por tanto, disponemos de 14 columnas con información que no significa nada. Por ello, como segundo paso de este preprocesamiento se desarrolla la siguiente función que se encarga de eliminar dichas columnas dado un dataset.
+Se consideran variables irrelevantes aquellas que no aportan información útil debido a que sus **valores son muy similares**. Este tipo de columnas no nos ayudan a predecir, posteriormente, si una transacción es o no fraudulenta puesto que independientemente de las muestras su comportamiento no varía. Uno de los métodos por los que se puede decidir si una variable dispone de valores interesantes es mediante la **desviación estándar**. Si esta medida estadística es 0 entonces nos indica que no existe variabilidad en los valores de la columna, y por tanto, esta variable no será útil. 
 
-```{r}
-eliminar_columnas_encriptadas<-function(datos) {
-  # Eliminamos las columas C1-C14
-  datos_finales<-datos[, -which(colnames(datos) %in% c("C1", "C2", "C3", "C4", 
-   "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"))]
-  # Devolvemos el conjunto resultante
-  datos_finales
-}
-```
+Para realizar este preprocesamiento vamos a hacer uso de la función `nearZeroVar` [4] que calcula el número de valores únicos y su frecuencia de aparición. De este modo obtendremos aquellas variables cuya desviación estándar sea 0 o cercana a dicho valor. Previo a su aplicación, es necesario transformar todas las variables a numéricas para poder calcular la desviación estándar. Para las columnas categóricas se asignará a cada etiqueta un único valor que la represente.
 
-También se consideran variables irrelevantes aquellas que no aportan información útil debido a que sus **valores son muy similares**. Este tipo de columnas no nos ayudan a predecir, posteriormente, si una transacción es o no fraudulenta puesto que independientemente de las muestras su comportamiento no varía. Uno de los métodos por los que se puede decidir si una variable dispone de valores interesantes es mediante la **desviación estándar**. Si esta medida estadística es 0 entonces nos indica que no existe variabilidad en los valores de la columna, y por tanto, esta variable no será útil. 
-
-Para realizar este preprocesamiento vamos a hacer uso de la función `nearZeroVar` [5] que calcula el número de valores únicos y su frecuencia de aparición. De este modo obtendremos aquellas variables cuya desviación estándar sea 0 o cercana a dicho valor. Previo a su aplicación, es necesario transformar todas las variables a numéricas para poder calcular la desviación estándar. Para las columnas categóricas se asignará a cada etiqueta un único valor que la represente.
-
-```{r}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 eliminar_columnas_sd<-function(datos, eliminar_todas) {
-  # Convertimos todas las variables a variables numéricas
+  # Convertimos todas las variables a variables numéricas.
   for(i in c(1:ncol(datos))) {
-       datos[,i] <- as.numeric(datos[,i])
+    if (names(datos[i]) != "isFraud") {
+      datos[,i] <- as.numeric(datos[,i])
+    }
   }
   # Calculamos el número de variables con desviación estándar cercana o igual a 0.
   library(caret)
@@ -153,7 +140,7 @@ eliminar_columnas_sd<-function(datos, eliminar_todas) {
   nz_cercano0<-nz[nz[,"zeroVar"] + nz[,"nzv"] > 0, ]
   # Eliminamos las variables con desviación estándar = 0
   datos_finales<-datos[, -which(colnames(datos) %in% rownames(nz0))]
-  
+
   # Si eliminar_todas=TRUE entonces también eliminamos las variables con sd cercana a 0
   if (eliminar_todas == TRUE) {
     datos_finales<-datos_finales[, -which(colnames(datos_finales) %in% rownames(nz_cercano0))]
@@ -168,11 +155,11 @@ eliminar_columnas_sd<-function(datos, eliminar_todas) {
 En este apartado procedemos a tratar los numerosos valores perdidos que contiene el conjunto de datos. Si bien existen multitud de técnicas para aplicarle a este tipo de datos, yo voy a considerar las siguientes:
 
 * **Eliminación de NAs**. Esta puede ser la técnica más drástica para tratar los valores perdidos. Para llevarla a cabo vamos a aplicar la función `na.omit()` que eliminará todos los registros que contentan este tipo de valores.
-* **Imputación de NAs**. Al contrario que la anterior, esta técnica más sofisticada es una de las más utilizadas según he estado investigando. Para aplicarla existen varias librerías pero al parecer la más popular es `mice` debido a las múltiples operaciones que puede llevar a cabo para asignar un valor a cada NA [6]. Dependiendo de la naturaleza de los datos, existen métodos específicos aunque también dispone de métodos generales aplicables a cualquier tipo de dato.
+* **Imputación de NAs**. Al contrario que la anterior, esta técnica más sofisticada es una de las más utilizadas según he estado investigando. Para aplicarla existen varias librerías pero al parecer la más popular es `mice` debido a las múltiples operaciones que puede llevar a cabo para asignar un valor a cada NA [5]. Dependiendo de la naturaleza de los datos, existen métodos específicos aunque también dispone de métodos generales aplicables a cualquier tipo de dato.
 
 A continuación se expone el código de las funciones asociadas a las dos técnicas explicadas anteriormente.
 
-```{r}
+```{r warning=TRUE, warning=FALSE, include=FALSE}
 eliminar_nas<-function(datos) {
   datos_finales<-na.omit(datos)
   # Devolvemos el conjunto resultante
@@ -183,11 +170,9 @@ imputar_nas<-function(datos, imputs, iters, metodo) {
   library(mice)
   # Especificamos el número de imputaciones, el número de iteraciones
   # por imputación y el método a utilizar para imputar los NAs
-  modelo_mice<-mice(minitraint_sd, m=imputs, maxit=iters, method=metodo)
+  modelo_mice<-mice(datos, m=imputs, maxit=iters, method=metodo)
   # Obtenemos el conjunto de datos imputado
   datos_imputados<-complete(modelo_mice)
-  # Comprobamos el número de NAs que han quedado
-  anyNA(datos_imputados)
   # Devolvemos el conjunto resultante
   datos_imputados
 }
@@ -198,11 +183,11 @@ imputar_nas<-function(datos, imputs, iters, metodo) {
 En esta sección vamos a estudiar la **correlación existente entre las variables y la columna a predecir**, que en el caso de este *dataset* es `isFraud`, y posteriormente analizaremos cuán **relacionadas se encuentran las variables entre sí**. El objetivo es, por un lado, conocer si existe alguna variable o grupo de variables que expliquen el comportamiento de la variable categórica a predecir. Mientras que por otro lado queremos conocer si existen variables muy correladas entre sí de manera que podamos reducir la dimensionalidad eliminando aquellas cuyo coeficiente de correlación sea muy alto, ya que este sería un indicio de que dichas columnas aportan la misma información.
 
 Para el primer estudio vamos a aplicar la función `correlation_table` tal y como se ejemplifica en uno de los *scripts* proporcionados en la asignatura. Como precondición para calcular los coeficientes de correlación, es necesario que las columnas dispongan solo de valores numéricos. 
-De igual forma, esta condición es necesaria para el segundo análisis que involucra a todas las variables, para el cual usaremos, en primer lugar, la función `cor` que se encargará de calcular los coeficieintes de correlación entre todas las variables del conjunto. Una vez dispongamos de esta matriz, aplicaremos la función `findCorrelation` [7] que nos ayudará a identificar aquellas variables que tienen un coeficiente de correlación especificado como argumento. De este modo se puede personalizar el nivel de exigencia con el que eliminar las columnas correladas.
+De igual forma, esta condición es necesaria para el segundo análisis que involucra a todas las variables, para el cual usaremos, en primer lugar, la función `cor` que se encargará de calcular los coeficieintes de correlación entre todas las variables del conjunto. Una vez dispongamos de esta matriz, aplicaremos la función `findCorrelation` [6] que nos ayudará a identificar aquellas variables que tienen un coeficiente de correlación especificado como argumento. De este modo se puede personalizar el nivel de exigencia con el que eliminar las columnas correladas.
 
 A continuación se presentan las funciones asociadas a los dos estudios de correlación que se realizarán a posteriori.
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 correlacion_fraude<-function(datos) {
   library(funModeling)
   # Calculamos los coeficientes de correlación en torno a la variable clasificatoria
@@ -225,7 +210,7 @@ correlacion_variables<-function(datos, max_corr) {
 
 ## Outliers
 
-Los *outliers* son datos cuyos valores están caracterizados por encontrarse fuera del rango normalizado para el atributo. En otras palabras, este tipo de datos disponen de valores muy diferentes a los del resto del conjunto y por ende pueden afectar a la capacidad de generalización de los modelos entrenados. Por este motivo, esta sección se va a dedicar al estudio y tratamiento de este tipo de valores. Para el análisis me he inspirado en este ejemplo [8] en el que se hace uso de la función `boxplot` [9], con la que se calculan los valores situados fuera del rango particular de cada variable. De este modo podremos conocer los *outliers* de cada una de las columnas.
+Los *outliers* son datos cuyos valores están caracterizados por encontrarse fuera del rango normalizado para el atributo. En otras palabras, este tipo de datos disponen de valores muy diferentes a los del resto del conjunto y por ende pueden afectar a la capacidad de generalización de los modelos entrenados. Por este motivo, esta sección se va a dedicar al estudio y tratamiento de este tipo de valores. Para el análisis me he inspirado en este ejemplo [7] en el que se hace uso de la función `boxplot` [8], con la que se calculan los valores situados fuera del rango particular de cada variable. De este modo podremos conocer los *outliers* de cada una de las columnas.
 
 ```{r message=FALSE, warning=FALSE}
 estudio_outliers<-function(datos) {
@@ -287,29 +272,40 @@ outliers_prediccion<-function(datos, imputs, iters, metodo) {
 
 ## Selección de variables
 
-El objetivo de este apartado consiste en reducir la dimensionalidad del *dataset* en lo referente a las variables que nos permiten predecir la columna categórica `isFraud`. Si bien existen diferentes técnicas para llevar este procedimiento a cabo, vamos a utilizar una de las más populares denominada **Análisis de Componentes Principales (PCA)**. Su procedimiento consiste en realizar diversas combinaciones lineales de los atributos del dataset de modo que nos indique cuáles son los más relevantes a considerar. Este tipo de técnicas se deben aplicar solo cuando el número de variables es considerablemente amplio, puesto que si lo llevamos a cabo con un número de columnas razonable podemos perder información al eliminar algunas de ellas. 
+El objetivo de este apartado consiste en reducir la dimensionalidad del *dataset* en lo referente a las variables que nos permiten predecir la columna categórica `isFraud`. Si bien existen diferentes técnicas para llevar este procedimiento a cabo, vamos a utilizar una de las más populares denominada **Análisis de Componentes Principales (PCA)**. Su procedimiento consiste en realizar diversas combinaciones lineales de los atributos del dataset de modo que nos indique cuáles son los más relevantes a considerar. Este tipo de técnicas se deben aplicar solo cuando el número de variables es considerablemente amplio, puesto que si lo llevamos a cabo con un número de columnas razonable podemos perder información al combinarlas. 
 
-Si bien existen dos paquetes principales para aplicar el PCA con y sin valores perdidos, vamos a hacer uso de este último puesto que en esta sección se presupone que el conjunto de datos se encuentra preprocesado e imputado. Asimismo, el PCA se puede ver altamente influido por aquellas variables con una mayor varianza lo que supondría su predominio sobre el resto de columnas. Es por ello por lo que el planteamiento de esta técnica va a ser similar al de este ejemplo [12]. En él se utiliza la función `prcomp()` [13] que previo a la aplicación del algoritmo PCA, es capaz de analizar las variables y aplicar procedimientos de **centrado y escalado** para que su media sea 0 y su desviación estándar 1.
+Si bien existen dos paquetes principales para aplicar el PCA con y sin valores perdidos, vamos a hacer uso de este último puesto que una de las precondiciones de la función es que el *dataset* se encuentre preprocesado e imputado. Asimismo, cabe destacar que este algoritmo es altamente sensible a las distancias entre los valores de las columnas, como datos muy grandes. Por ello es recomendable realizar un **centrado y escalado** de los datos previa a la aplicación del algoritmo. Para realizar todo el procedimiento voy a hacer uso de la función `preProcess` [9] la cual aplica tanto el escalado y centrado como el algoritmo PCA a todo el conjunto de datos exceptuando la variable a predecir. 
+Asimismo, también se le puede especificar el **porcentaje de varianza máximo** deseado para seleccionar las variables que la representen. A menor valor, menor número de variables pero también peor será la representación de estas variables del conjunto de datos. Por último obtenemos el *dataset* resultante con las combinaciones de variables obtenidas por el algoritmo con la función `predict`.
 
-**HAY GRÁFICOS EN LOS EJEMPLOS BUSCADOS Y EN EL TRABAJO3 - Al aplicar finalmente el algoritmo PCA (que lo haremos directament con \textbf{preProcess()}), obtendremos un conjunto reducido de "atributos". Lo expresamos entre comillas, ya que en realidad, estos valores son combinaciones lineales de los atributos iniciales, por tanto, como resultado habremos conseguido reducir en dimensionalidad a costa de tener datos mucho menos interpretables.**
-**APLICAREMOS LUEGO PREPROCESS Y PREDICT PARA OBTENER EL CONJUNTO DE DATOS REDUCIDO?????????**
-
+```{r}
+pca<-function(datos, umbral) {
+  # Eliminamos la columna isFraud para que no se le aplique este procedimiento.
+  datos_sin_fraud<-datos[, -which(names(datos) %in% c("isFraud"))]
+  library(caret)
+  # Centrado, escalado y PCA
+  pca<-preProcess(datos_sin_fraud, method = c("center", "scale", "pca"), thres=umbral)
+  # Obtenemos el dataset con las combinaciones de las variables obtenidas del PCA
+  datos_pca<-predict(pca, datos_sin_fraud) 
+  # Volvemos a añadir la columna `isFraud`
+  datos_pca<-cbind(datos_pca, isFraud=datos$isFraud)
+  # Devolvemos el conjunto de datos resultante
+  datos_pca
+}
+```
 
 ## Balanceo de la clase a predecir
 
-En esta última sección se tratará el desbalanceo de la clase `isFraud` con la que debemos entrenar los modelos para poder predecir si una transacción es fraudulenta o no. Como hemos podido observar en el análisis exploratorio, la gran mayoría de muestras son transacciones no fraudulentas (cerca del 96%) mientras que la clase minoritaria es la asociada a las transacciones fraudulentas. Este tipo de problemas es bastante común, pero en el caso de este dataset **es súmamente desproporcionado**. Para intentar paliar este inconveniente se van a aplicar dos de las técnicas más populares: **downsampling y (?)**. En el primer caso se obtendrá un subconjunto de datos en el que se iguale el número de muestras de ambas clases, es decir, se escogerán tantas muestras de transacciones no fraudulentas al azar como ejemplos de transacciones fradulentas haya [downsample]. Con esta técnica el conjunto de datos se reducirá drásticamente, lo cual provocará una serie de consecuencias que analizaremos posteriormente al entrenar los modelos.
+En esta última sección se tratará el desbalanceo de la clase `isFraud` con la que debemos entrenar los modelos para poder predecir si una transacción es fraudulenta o no. Como hemos podido observar en el análisis exploratorio, la gran mayoría de muestras son transacciones no fraudulentas (cerca del 96%) mientras que la clase minoritaria es la asociada a las transacciones fraudulentas. Este tipo de problemas es bastante común, pero en el caso de este dataset **es súmamente desproporcionado**. Para intentar paliar este inconveniente se van a aplicar dos de las técnicas más populares: **undersampling y oversampling**. En el primer caso se obtendrá un subconjunto de datos en el que se iguale el número de muestras de ambas clases, es decir, se escogerán tantas muestras de transacciones no fraudulentas al azar como ejemplos de transacciones fradulentas haya [downsample]. Con esta técnica el conjunto de datos se reducirá drásticamente, lo cual provocará una serie de consecuencias que analizaremos posteriormente al entrenar los modelos.
 
 ```{r}
-downsampling<-function(datos) {
+under_sampling<-function(datos) {
   library(caret)
   # Obtenemos las etiquetas a predecir
   etiquetas<-factor(datos$isFraud)
-  # Downsampling para igualar ambas clases
+  # Under-sampling para igualar ambas clases
   set.seed(32)
   datos_finales<-downSample(datos[, -which(names(datos) %in% c("isFraud"))],
       etiquetas, yname='isFraud')
-  # Comprobamos que ambas clases se encuentran balanceadas
-  count(datos_finales, isFraud)
   # Devolvemos los datos resultantes
   datos_finales
 }
@@ -373,78 +369,77 @@ curva_roc<-function(predicciones, etiquetas) {
 
 ## Modelos del primer preprocesamiento
 
-En este primer modelo vamos a comenzar eliminando aquellas columnas con más de un **50% de valores perdidos**. De este modo conseguimos reducir el número de variables de **434 a 305**, que si bien siguen siendo muchas solo eliminando las columnas con más de un 50% de NAs hemos conseguido una buena reducción del número de columnas. A continuación, procedemos a eliminar las **columnas consideradas irrelevantes** para continuar reduciendo la dimensionalidad del conjunto de modo que eliminando las columnas encriptadas y las que tienen desviación estándar 0 se consigue disponer de **289 columnas**.
+En este primer modelo vamos a comenzar eliminando aquellas columnas con más de un **50% de valores perdidos**. De este modo conseguimos reducir el número de variables de **434 a 305**, que si bien siguen siendo muchas solo eliminando las columnas con más de un 50% de NAs hemos conseguido una buena reducción del número de columnas. A continuación, procedemos a eliminar las columnas con **desviación estándar=0** para continuar reduciendo la dimensionalidad del conjunto de modo que, añadiendo este segundo procesamiento, hemos conseguido reducir hasta las **301 columnas**.
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 # Eliminamos columnas con > 50% NA
-minitrain_m1<-eliminar_columnas_nas(minitrain)
-# Eliminamos columnas irrelevantes: C1-C14 encriptadas y con sd=0
-minitrain_m1<-eliminar_columnas_encriptadas(minitrain_m1)
-minitrain_m1<-eliminar_columnas_sd(minitrain_m1, FALSE)
+train_m1<-eliminar_columnas_nas(train)
+# Eliminamos columnas con sd=0
+train_m1<-eliminar_columnas_sd(train_m1, FALSE)
 ```
 
-Una vez hemos reducido casi la mitad de las columnas del *dataset*, previo a realizar estudios más sofisticados vamos a **tratar los valores perdidos**. Para ello vamos a aplicar la primera técnica explicada anteriormente consistente en **eliminar todos los registros con NA**. De este modo podemos comprobar cómo el conjunto de datos se ve grávemente afectado puesto que pasa de 50.000 muestras a disponer solo de aproximadamente **7.509 ejemplos**. Como ya anticipamos este método es muy agresivo pero cuando entrenemos los modelos comprobaremos si este hecho se ve reflejado en su calidad.
+Una vez hemos reducido casi la mitad de las columnas del *dataset*, previo a realizar estudios más sofisticados vamos a **tratar los valores perdidos**. Para ello vamos a aplicar la primera técnica explicada anteriormente consistente en **eliminar todos los registros con NA**. De este modo podemos comprobar cómo el conjunto de datos se ve grávemente afectado puesto que pasa de más de 100.000 muestras a disponer solo de aproximadamente **21.984 ejemplos**. Como ya anticipamos este método es muy agresivo pero cuando entrenemos los modelos comprobaremos si este hecho se ve reflejado en su calidad.
 
-Aplicando algunas técnicas para conocer la importancia de las 289 variables que disponemos me he dado cuenta de que al eliminar los valores perdidos algunas variables **vuelven a tener una desviación estándar igual a 0**. Por lo tanto vamos a realizar una segunda pasada de esta función para eliminarlas con el objetivo de poder, a continuación, estudiar la correlación entre variables y con la variable a predecir para continuar reduciendo la dimensionalidad asociada a las columnas. Tal y como comprobar han sido un total de tres variables las que han sufrido la desviación estándar 0 al eliminar los valores NA, por lo que deducimos que estas columnas no han sido eliminadas anteriormente por contar con este tipo de valores que les sumaban cierta variabilidad a su rango. Por lo tanto en este momento contamos con **284 variables**.
+Aplicando algunas técnicas para conocer la importancia de las 301 variables que disponemos me he dado cuenta de que al eliminar los valores perdidos algunas variables **vuelven a tener una desviación estándar igual a 0**. Por lo tanto vamos a realizar una segunda pasada de esta función para eliminarlas con el objetivo de poder, a continuación, estudiar la correlación entre variables y con la variable a predecir para continuar reduciendo la dimensionalidad asociada a las columnas. Tal y como comprobar han sido un total de cuatro variables las que han sufrido la desviación estándar 0 al eliminar los valores NA, por lo que deducimos que estas columnas no han sido eliminadas anteriormente por contar con este tipo de valores que les sumaban cierta variabilidad a su rango. Por lo tanto en este momento contamos con **297 variables**.
 
 ```{r}
 # Eliminar registros con valores NA
-minitrain_m1<-eliminar_nas(minitrain_m1)
+train_m1<-eliminar_nas(train_m1)
 # Volvemos a eliminar las nuevas columnas que han surgido con desviación estándar=0
 # tras quitar valores perdidos
-minitrain_m1<-eliminar_columnas_sd(minitrain_m1, FALSE)
+train_m1<-eliminar_columnas_sd(train_m1, FALSE)
 # Dimensión del conjunto resultante
 cat("\nSegunda tanda para eliminar variables con sd=0\n")
-dim(minitrain_m1)
+dim(train_m1)
 
 # Correlación entre variables
-minitrain_m1<-correlacion_variables(minitrain_m1, 0.75)
+train_m1<-correlacion_variables(train_m1, 0.75)
 # Dimensión del conjunto resultante
 cat("\nTras eliminar variables correladas > 0.75\n")
-dim(minitrain_m1)
+dim(train_m1)
 
 # Correlación entre las variables y la categórica `isFraud`
-tabla_corr<-correlacion_fraude(minitrain_m1)
+tabla_corr<-correlacion_fraude(train_m1)
 head(tabla_corr, 10)
 # Obtenemos las variables que tienen un coeficiente de correlación muy bajo con respecto a isFraud
 tabla_corr_baja<-tabla_corr %>% filter(isFraud > -0.1 & isFraud < 0.1)
 # Las eliminamos del conjunto de datos haciendo una copia en otro para no perder el original
-minitrain_m1_corr<-minitrain_m1[, -which(colnames(minitrain_m1) %in% tabla_corr_baja$Variable)]
+train_m1_corr<-train_m1[, -which(colnames(train_m1) %in% tabla_corr_baja$Variable)]
 # Dimensión del conjunto resultante
 cat("\nTras eliminar variables con correlación en [-0.1, 0.1] con respecto a isFraud\n")
-dim(minitrain_m1_corr)
+dim(train_m1_corr)
 ```
 
-A continuación vamos a estudiar la **correlación entre variables**. Como se ha explicado al presentar su correspondiente función, nuestro objetivo es eliminar aquellas que proporcionen información redundante para así reducir más el número de columnas del *dataset*. Para ello vamos a establecer un umbral de **0.75** por el cual eliminaremos todas aquellas variables cuyos coeficientes sean mayores a dicho valor puesto que este conlleva un indicio de alta correlación entre columnas. Este procesamiento nos ha hecho bajar de 286 variables a solo **82 columnas**, por lo que podemos concluir que la gran mayoría de variables restantes proporcionaban la misma información y ahora vamos a considerar aquellas que son más relevantes.
+A continuación vamos a estudiar la **correlación entre variables**. Como se ha explicado al presentar su correspondiente función, nuestro objetivo es eliminar aquellas que proporcionen información redundante para así reducir más el número de columnas del *dataset*. Para ello vamos a establecer un umbral de **0.75** por el cual eliminaremos todas aquellas variables cuyos coeficientes sean mayores a dicho valor puesto que este conlleva un indicio de alta correlación entre columnas. Este procesamiento nos ha hecho bajar de 286 variables a solo **84 columnas**, por lo que podemos concluir que la gran mayoría de variables restantes proporcionaban la misma información y ahora vamos a considerar aquellas que son más relevantes.
 
-En relación al análisis de **correlación entre las variables y la categórica `isFraud`** podemos visualizar los diez primeros resultados puesto que la tabla es considerablemente amplia como para mostrarla entera. Sin embargo, estudiándola en profundidad he podido percatarme de que existen muchas columnas con menos de 0.1 de correlación. Si bien en este caso el objetivo es el mismo de reducir el número de columnas del que disponemos, en este caso queremos disponer de aquellas **variables que tengan un mayor coeficiente de correlación con `isFraud`** puesto que este hecho nos indica que dichas columnas pueden explicar el comportamiento de la variable a predecir. Mientras que si bien las columnas con una baja correlación por sí solas no ayudan a predecir la variable categórica, sí que pueden aportan información valiosa si se combinan con otras columnas. Para comprobar esta teoría vamos a entrenar unos primeros modelos **eliminando aquellas variables con una correlación en el intervalo [-0.1, 0.1]** de modo que excluyamos todas aquellas columnas con una relación muy baja con la variable `isFraud` en base al coeficiente de correlación. Con este procesamiento ya disponemos de **35 variables**, un número mucho más manejable de columnas del que teníamos anteriormente.
+En relación al análisis de **correlación entre las variables y la categórica `isFraud`** podemos visualizar los diez primeros resultados puesto que la tabla es considerablemente amplia como para mostrarla entera. Sin embargo, estudiándola en profundidad he podido percatarme de que existen muchas columnas con menos de 0.1 de correlación. Si bien en este caso el objetivo es el mismo de reducir el número de columnas del que disponemos, en este caso queremos disponer de aquellas **variables que tengan un mayor coeficiente de correlación con `isFraud`** puesto que este hecho nos indica que dichas columnas pueden explicar el comportamiento de la variable a predecir. Mientras que si bien las columnas con una baja correlación por sí solas no ayudan a predecir la variable categórica, sí que pueden aportan información valiosa si se combinan con otras columnas. Para comprobar esta teoría vamos a entrenar unos primeros modelos **eliminando aquellas variables con una correlación en el intervalo [-0.1, 0.1]** de modo que excluyamos todas aquellas columnas con una relación muy baja con la variable `isFraud` en base al coeficiente de correlación. Con este procesamiento ya disponemos de **34 variables**, un número mucho más manejable de columnas del que teníamos anteriormente.
 
-A continuación vamos a realizar un estudio de los **outliers** para comprobar cuántos de estos valores disponen las 34 columnas del conjunto de datos resultante hasta el momento. De nuevo mostramos solo los 10 primeros resultados porque aun siendo menos columnas, la lista de *outliers* es bastante extensa para mostrarla al completo. Visualizándola en profunidad he podido observar que la gran mayoría de columnas disponen de este tipo de valores en mayor o menor cantidad, por ello se le va a aplicar el primero de los tratamientos explicados, consistente en transformarlos en el cuantil 5 o 95 en función de si se encuentran por debajo o por encima del rango de valores, respectivamente.
+A continuación vamos a realizar un estudio de los **outliers** para comprobar de cuántos de estos valores disponen las 34 columnas del conjunto de datos resultante hasta el momento. De nuevo mostramos solo los 10 primeros resultados porque aun siendo menos columnas, la lista de *outliers* es bastante extensa para mostrarla al completo. Visualizándola en profunidad he podido observar que la gran mayoría de columnas disponen de este tipo de valores en mayor o menor cantidad, por ello se le va a aplicar el primero de los tratamientos explicados, consistente en transformarlos en el cuantil 5 o 95 en función de si se encuentran por debajo o por encima del rango de valores, respectivamente.
 
 ```{r message=FALSE, warning=FALSE}
 # Estudio de los outliers
 cat("\nOutliers antes del tratamiento\n")
-head(summary(estudio_outliers(minitrain_m1_corr)), 10)
+head(summary(estudio_outliers(train_m1_corr)), 10)
 # Tratamiento de outliers mediante la fórmula
-minitrain_m1_out<-outliers_formula(minitrain_m1_corr)
+train_m1_out<-outliers_formula(train_m1_corr)
 # Estudio del conjunto resultante
 cat("\nOutliers tras el tratamiento\n")
-head(summary(estudio_outliers(minitrain_m1_out)), 10)
+head(summary(estudio_outliers(train_m1_out)), 10)
 ```
 
 Una vez hemos tratado los *outliers* de todas las columnas excepto `isFraud` volvemos a realizar un análisis para comprobar si aún existen este tipo de valores. Y tal y como podemos observar así es, algunas variables siguen disponiendo de este tipo de valores. La razón de ello reside en que si un valor *outlier* no supera el umbral que se calcula para la variable, no se modifica y por lo tanto pasa al nuevo conjunto resultante. Por el momento vamos a mantener este conjunto de datos para posteriormente comparar los modelos entrenados con él y con otro conjunto al que le apliquemos la segunda técnica explicada para los *outliers*.
 
-Como ya disponemos de un conjunto de variables más reducido, **no vamos a aplicar el PCA** puesto que nos arriesgamos a perder información a la hora de combinar las columnas. Por lo que procedemos directamente a realizar el último paso previo al entrenamiento de los modelos: **balancear la clase a predecir**. Para ello vamos a aplicar la primera técnica explicada denominada **downsammpling**, con el objetivo de disponer del mismo número de transacciones fraudulentas como de no fraudulentas. Tal y como podemos observar el conjunto se ha reducido considerablemente puesto que el número de muestras fraudulentas es súmamente menor que el de no fraudulentas, y si a esto le sumamos partir de un conjunto con no demasiadas muestras pues al final el *dataset* dispone de pocos ejemplos.
+Como ya disponemos de un conjunto de variables más reducido, **no vamos a aplicar el PCA** puesto que nos arriesgamos a perder información a la hora de combinar las columnas. Por lo que procedemos directamente a realizar el último paso previo al entrenamiento de los modelos: **balancear la clase a predecir**. Para ello vamos a aplicar la primera técnica explicada denominada **under-sampling**, con el objetivo de disponer del mismo número de transacciones fraudulentas como de no fraudulentas. Tal y como podemos observar el conjunto se ha reducido considerablemente puesto que el número de muestras fraudulentas es súmamente menor que el de no fraudulentas, y si a esto le sumamos partir de un conjunto con no demasiadas muestras pues al final el *dataset* dispone de pocos ejemplos.
 
-Una vez disponemos del conjunto de datos preprocesado, lo dividimos en un conjunto de entrenamiento y test para validar los modelos que vamos a entrenar a continuación con el objetivo de calcular un mayor número de medidas que la tasa de error que solo nos devuelve Kaggle. Para ello vamos a separar el **70% de los datos para entrenamiento y el 30% dedicado a la validación de los modelos**.
+Una vez disponemos del conjunto de datos preprocesado, lo dividimos en un conjunto de entrenamiento y test para validar los modelos que vamos a entrenar a continuación con el objetivo de calcular un mayor número de medidas que la tasa de error que solo nos devuelve Kaggle. Para ello vamos a separar el **70% de los datos para entrenamiento y el 30% dedicado a la validación de los modelos**. Si bien la práctica de aplicar el preprocesamiento sobre el conjunto de datos completo, afectando también al futuro conjunto de validación, no es técnicamente correcto como facilita súmamente el trabajo es muy utilizada y por lo tanto yo también voy a trabajar de esta forma. Por lo tanto voy a obtener sendos conjuntos de entrenamiento y validación de los datos ya preprocesados.
 
 ```{r message=FALSE, warning=FALSE}
-# Downsampling para balancear la clase `isFraud`
-minitrain_m1_final<-downsampling(minitrain_m1_out)
-cat("Conjunto de datos tras downsampling\n")
-dim(minitrain_m1_final)
+# Under-sampling para balancear la clase `isFraud`
+train_m1_final<-under_sampling(train_m1_out)
+cat("Conjunto de datos tras under-sampling\n")
+dim(train_m1_final)
 # Dividimos el conjunto final en 70% entrenamiento y 30% test
-datos<-get_train_test(minitrain_m1_final, 0.7)
+datos<-get_train_test(train_m1_final, 0.7)
 cat("\nConjunto de entrenamiento\n")
 dim(datos$train)
 cat("\nConjunto de test\n")
@@ -461,16 +456,16 @@ calidad_nb<-calidad_modelo(modelo_nb, datos$test, datos$test$isFraud)
 confusionMatrix(calidad_nb$conf, positive='1')
 ```
 
-Como podemos observar hemos utilizado la función `confusionMatrix` [10] para obtener más información acerca del modelo a partir de la propia matriz de confusión. Si bien la documentación oficial de la función no aporta información acerca de los atributos mostrados, he encontrado un ejemplo [11] en el que se detallan cada uno de ellos. En primer lugar destacamos que la **precisión del modelo es de un 77%**, valor que se encuentra dentro de un intervalo al 95%, lo que nos asegura casi con totalidad que la precisión del modelo mostrada es verídica. Por otro lado podemos observar en el atributo *No Information Rate* cómo la función ha detectado el balanceado de la clase `isFraud` puesto que este valor indica que no existe una mayor representación de una clase y por ende el clasificador no se ve influido por una clase mayoritaria.
+Como podemos observar hemos utilizado la función `confusionMatrix` [9] para obtener más información acerca del modelo a partir de la propia matriz de confusión. Si bien la documentación oficial de la función no aporta información acerca de los atributos mostrados, he encontrado un ejemplo [10] en el que se detallan cada uno de ellos. En primer lugar destacamos que la **precisión del modelo es de un 74%**, valor que se encuentra dentro de un intervalo al 95%, lo que nos asegura casi con totalidad que la precisión del modelo mostrada es verídica. Por otro lado podemos observar en el atributo *No Information Rate* cómo la función ha detectado el balanceado de la clase `isFraud` puesto que este valor indica que no existe una mayor representación de una clase y por ende el clasificador no se ve influido por una clase mayoritaria.
 
-Si nos fijamos en un campo denominado *Kappa* podemos conocer cuán bueno es el clasificador entrenado frente a otro que escoge las etiquetas al azar. Investigando más acerca de la repercusión de este valor [12] se considera que un modelo es confiable cuando este valor se encuentra **por encima del 80%**. En este caso podemos apreciar que nuestro valor es del 55%, lo que significa que **falla en la mitad de las ocasiones**. Tal y como se explica en la fuente [12], la gravedad de estos resultados dependen del ámbito en el que se encuentre y considerando la capacidad de detectar transacciones fraudulentas, podemos determinar que **este clasificador no es para nada competitivo** dentro de un ámbito real.
+Si nos fijamos en un campo denominado *Kappa* podemos conocer cuán bueno es el clasificador entrenado frente a otro que escoge las etiquetas al azar. El objetivo es conocer si el clasificador obtenido, en este caso por Naive Bayes, realmente está prediciendo las etiquetas o las clasifica más aleatoriamente. Investigando más acerca de la repercusión de este valor [12] se considera que un modelo es confiable cuando este valor se encuentra **por encima del 80%**, lo que significa que apenas presenta cierta aleatoriedad en sus clasificaciones. En este caso podemos apreciar que nuestro valor es del 47%, lo que significa que en más de **la mitad de las etiquetas coincide con un clasificador aleatorio**. Tal y como se explica en la fuente [12], la gravedad de estos resultados dependen del ámbito en el que se encuentre y considerando la capacidad de detectar transacciones fraudulentas, podemos determinar que **este clasificador no es para nada competitivo** dentro de un ámbito real.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Dibujamos la curva ROC del modelo de Naive Bayes
 curva_roc(calidad_nb$preds, datos$test$isFraud)
 ```
 
-Visualizando la curva ROC podemos comprobar la teoría anterior puesto que tal y como podemos observar el clasificador no dispone de una gran capacidad de generalización puesto que su área apenas llega a un 77%. 
+Visualizando la curva ROC podemos comprobar la teoría anterior puesto que tal y como podemos observar el clasificador no dispone de una gran capacidad de generalización puesto que su área apenas llega a un 74%. 
 
 A continuación vamos a repetir el mismo proceso pero utilizando **Random Forest** y los mismos conjuntos de datos de entrenamiento y validación. 
 
@@ -485,9 +480,9 @@ calidad_rf<-calidad_modelo(modelo_rf, datos$test, datos$test$isFraud)
 confusionMatrix(calidad_rf$conf, positive='1')
 ```
 
-Tal y como podemos observar este modelo cuenta con una **precisión del 84%**, 7 puntos más que el modelo anterior. Si observamos, además, la matriz de confusión podemos apreciar una disminución de los falsos positivos lo que acompaña a esta mejora en la tasa de aciertos. Sin embargo, analizando de nuevo el resto de atributos según [12] en este caso el campo *Kappa* muestra aproximadamente un **69% de acierto** con respecto al clasificador entrenado por el método en cuestión. Si bien sigue sin llegar al recomendable 80%, podemos afirmar que este modelo muestra una mayor confiabilidad de cara a utilizarlo en un ámbito real comparado con el anterior. Aún así, con **este preprocesamiento ninguno de los modelos entrenados son competitivos**. 
+Tal y como podemos observar este modelo cuenta con una **precisión del 83%**, 9 puntos más que el modelo anterior. Si observamos, además, la matriz de confusión podemos apreciar una disminución de los falsos positivos lo que acompaña a esta mejora en la tasa de aciertos. Sin embargo, analizando de nuevo el resto de atributos según [11] en este caso el campo *Kappa* muestra aproximadamente un **67% de acierto** con respecto al clasificador entrenado por el método en cuestión. Si bien sigue sin llegar al recomendable 80%, podemos afirmar que este modelo muestra una mayor confiabilidad de cara a utilizarlo en un ámbito real comparado con el anterior puesto que sus resultados coinciden menos con los de un clasificador aleatorio. Aún así, con **este preprocesamiento ninguno de los modelos entrenados son competitivos**. 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Dibujamos la curva ROC del modelo de Naive Bayes
 curva_roc(calidad_rf$preds, datos$test$isFraud)
 ```
@@ -495,6 +490,120 @@ curva_roc(calidad_rf$preds, datos$test$isFraud)
 Si además visualizamos la curva ROC del modelo entrenado con Random Forest podemos apreciar una mayor amplitud, lo que produce un **área mayor bajo la curva**, por lo que bajo el mismo preprocesamiento de los conjuntos esta técnica ha conseguido un clasificador con una mejor capacidad de generalización frente a la técnica Naive Bayes utilizada para el primer modelo.
 
 ## Modelos del segundo preprocesamiento
+
+En este segundo preprocesamiento vamos a partir del conjunto de datos de entrenamiento original. El primer paso que vamos a realizar es **balancear la clase `isFraud`** y así también reducir la dimensionalidad del conjunto. El objetivo consiste en preprocesar los datos de modo que no exista una clase mayoritaria y así  aplicar las siguientes técnicas sobre un conjunto de datos ya balanceado.
+
+```{r message=FALSE, warning=FALSE}
+library(plyr)
+# Balanceamos las clases tomando todas las transacciones
+# positivas y el mismo número de transacciones negativas
+train_m2<-under_sampling(train)
+# Comprobamos que ambas clases se encuentran balanceadas
+count(train_m2, vars = "isFraud")
+```
+
+Como podemos observar hemos pasado de tener más de 100.000 registros a solo disponer de 11.318 en cada clase lo que hace un total de **22.636 muestras**. Una vez disponemos del conjunto de datos balanceado, comenzamos a eliminar las columnas con más de un 50% de NAs y aquellas con desviación estándar igual a 0, como hicimos en el primer procesamiento.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Eliminamos las columnas con > 50% NAs
+train_m2<-eliminar_columnas_nas(train_m2)
+# Eliminamos las columnas con sd=0
+train_m2<-eliminar_columnas_sd(train_m2, FALSE)
+```
+
+Tal y como se puede comprobar hemos pasado de las 434 variables originales a **324 columnas**. A continuación, vamos a introducir un segundo cambio en el preprocesamiento anterior de modo que **no eliminaremos los valores perdidos o NAs, sino que los imputaremos utilizando la función `mice`**. Con ella se puede especificar el método a utilizar para imputar los valores perdidos así como el número de imputaciones e iteraciones por cada una de ellas. En relación al primer parámetro he probado en primer lugar *rf* (*Random Forest*), pero debido a la poca variabilidad de los datos esta técnica no ha producido buenos resultados. Otro método sofisticado es *cart*, el cual es capaz de escoger clasificación o árboles de decisión en función de la naturaleza de la columna para predecir los NAs. Existen también otras técnicas más rápidas y sencillas como la media de los valores (*mean*) o asignar un valor aleatorio dentro del rango de valores de la columna (*sample*).
+
+```{r}
+cat("Dimensiones tras borrar columnas > 50% NAs y con sd=0\n")
+dim(train_m2)
+```
+
+En primer lugar cabe destacar que este proceso es **muy costoso computacionalmente** por la gran cantidad de columnas que disponemos. Asimismo, cuanto más sofisticado sea el método a aplicar, más tiempo tardará en imputar los valores NA. Según esta fuente [12] a mayor número de imputaciones e iteraciones mejor resultado obtendremos al transformar los valores perdidos por los valores predichos. Sin embargo, tras realizar muchas pruebas he comprobado que para ciertas columnas **no existe suficiente información como para imputar todos los NAs** y que independientemente del número de iteraciones/imputaciones, el *dataset* resultante sigue conteniendo valores perdidos. Por lo tanto, a continuación se aplica la configuración que mejor relación calidad~tiempo he conseguido para imputar la mayoría de los valores NAs. Con ella pasamos de tener **988.826 valores perdidos a 11.003**, lo cual podemos determinar que es una gran reducción. Como anteriormente he comentado, este proceso es súmamente costoso y por ello solo se ha realizado una vez guardando en un fichero el *dataset* obtenido hasta el momento para sus posteriores usos.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# Primera imputación de NAs utilizando clasificación y arboles de decisión ('cart')
+train_m2_cart<-imputar_nas(train_m2, 1, 1, "cart")
+# Almacenamos el dataset resultante en un fichero csv
+write.csv(train_m2_cart,'train_m2_cart.csv', row.names = FALSE, col.names=TRUE)
+```
+
+Una vez disponemos de un primer conjunto con menos NAs, vamos a calcular la media para cada uno de los restantes de modo que terminemos de limpiar el *dataset* de valores perdidos. Lo he intentado realizar, de nuevo, con la función `mice` pero como he mencionado anteriormente, tiene dificultades para recopilar la información necesaria y calcular la media para asignarla en lugar del valor perdido. Por ello lo voy a realizar con un procedimiento particular consistente en calcular la media para cada una de las columnas que aún tengan valores perdidos reemplazándolos por la media obtenida. Cuando ya tenemos el conjunto libre de valores perdidos aplicamos la misma técnica anterior por la que eliminamos todas aquellas variables con un coeficiente de **correlación mayor que 0.75**. De este modo pasamos a tener **151 variables**.
+
+En este segundo preprocesamiento, a diferencia del anterior, no vamos a estudiar la correlación entre `isFraud` y el resto de variables puesto que no vamos a eliminar ninguna que tenga una baja correlación. En su lugar aplicaremos el **algoritmo PCA** para reducir el número de variables. Sin embargo, previamente vamos a sustituir los *outliers* con la función que implementa la fórmula también aplicada en el anterior preprocesamiento.
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+```{r message=FALSE, warning=FALSE}
+# Cargamos el dataset desde el fichero
+train_m2_cart<-read.csv(file="./train_m2_cart.csv", header=TRUE, sep=",")
+# Imputación de NAs
+cat("Número de NAs tras la primera imputación con 'cart'\n")
+sum(is.na(train_m2_cart))
+cat("\nVariables con NAs\n")
+cols_nas<-colnames(train_m2_cart)[!complete.cases(t(train_m2_cart))]
+cols_nas
+# Declaramos una función para calcular la media y asignársela a los valores NA de una columna
+## El objetivo es poder aplicar el procedimiento a todo el dataset
+asignar_media<-function(x) replace(x, is.na(x), mean(x, na.rm=TRUE))
+train_m2_mean<-replace(train_m2_cart, TRUE, lapply(train_m2_cart, asignar_media))
+cat("\nNúmero de NAs tras asignar la media\n")
+sum(is.na(train_m2_mean))
+
+# Correlación entre variables
+train_m2_mean<-correlacion_variables(train_m2_mean, 0.75)
+# Dimensión del conjunto resultante
+cat("\nTras eliminar variables correladas > 0.75\n")
+dim(train_m2_mean)
+```
+
+Tal y como podemos observar, de nuevo la fórmula para normalizar los *outliers* no termina de completar su objetivo, puesto que siguen quedando este tipo de valores tras aplicar la técnica. Sin embargo, en este segundo preprocesamiento también los dejaremos en el *dataset*. Una segunda consecuencia de haber tratado los *outliers* consiste en la generación de **nuevas columnas con desviación estándar igual a 0**. Este hecho ha sido descubierto al obtener un error aplicando el PCA referente a la imposibilidad de tratar variables con desviación estándar 0. Por lo que, de nuevo, volveremos a aplicar una reducción de las variables con esta cualidad. De este modo hemos pasado de disponer de **151 variables a 125**.
+
+```{r message=FALSE, warning=FALSE}
+# Estudio de los outliers
+cat("\nOutliers antes del tratamiento\n")
+head(summary(estudio_outliers(train_m2_mean)), 10)
+# Tratamiento de outliers mediante la fórmula
+train_m2_out<-outliers_formula(train_m2_mean)
+# Estudio del conjunto resultante
+cat("\nOutliers tras el tratamiento\n")
+head(summary(estudio_outliers(train_m2_out)), 10)
+
+# Eliminamos las nuevas columnas con sd=0
+train_m2_out<-eliminar_columnas_sd(train_m2_out, FALSE)
+cat("\nDimensión tras eliminar de nuevo columnas con sd=0\n")
+dim(train_m2_out)
+
+# Aplicamos el PCA
+train_pca<-pca(train_m2_out, 0.8)
+dim(train_pca)
+```
+
+```{r}
+# Dividimos el conjunto final en 70% entrenamiento y 30% test
+train_pca<-train_pca %>% mutate(isFraud = as.factor(ifelse(isFraud == 1, 0, 1)))
+datos<-get_train_test(train_pca, 0.7)
+
+
+cat("\nConjunto de entrenamiento\n")
+dim(datos$train)
+cat("\nConjunto de test\n")
+dim(datos$test)
+cat("\n")
+
+############## INTENTAR CAMBIAR LOS 1->0 Y 2->1
+
+# MODELO NAIVE BAYES
+set.seed(32)
+library(e1071)
+# Entrenamos el modelo utilizando todas las características
+modelo_nb<-naiveBayes(isFraud~., data = datos$train)
+# Obtenemos las predicciones y matriz de confusión
+calidad_nb<-calidad_modelo(modelo_nb, datos$test, datos$test$isFraud)
+confusionMatrix(calidad_nb$conf, positive='1')
+
+
+predicciones<-predict(modelo_nb, datos$test)
+```
 
 
 
@@ -506,17 +615,17 @@ Si además visualizamos la curva ROC del modelo entrenado con Random Forest pode
 
 [3] Kaggle, Data Description (Details and Discussion), https://www.kaggle.com/c/ieee-fraud-detection/discussion/101203
 
-[4] Andrie de Vries and Joris Meys, How to Take Samples from Data in R, https://www.dummies.com/programming/r/how-to-take-samples-from-data-in-r/
+[4] Documentación sobre la función nearZeroVar, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/nearZeroVar
 
-[5] Documentación sobre la función nearZeroVar, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/nearZeroVar
+[5] Documentación sobre la función mice, https://www.rdocumentation.org/packages/mice/versions/2.25/topics/mice
 
-[6] Documentación sobre la función mice, https://www.rdocumentation.org/packages/mice/versions/2.25/topics/mice
+[6] Documentación acerca de la función findCorrelation, https://rdrr.io/rforge/caret/man/findCorrelation.html
 
-[7] Documentación acerca de la función findCorrelation, https://rdrr.io/rforge/caret/man/findCorrelation.html
+[7] r-statistics.co, Selva Prabhakaran, Outlier Treatment, http://r-statistics.co/Outlier-Treatment-With-R.html
 
-[8] r-statistics.co, Selva Prabhakaran, Outlier Treatment, http://r-statistics.co/Outlier-Treatment-With-R.html
+[8] Documentación sobre la función boxplot, https://www.rdocumentation.org/packages/grDevices/versions/3.6.2/topics/boxplot.stats
 
-[9] Documentación sobre la función boxplot, https://www.rdocumentation.org/packages/grDevices/versions/3.6.2/topics/boxplot.stats
+[9] Documentación sobre la función preProcess, https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/preProcess
 
 [10] Documentación de la función confusionMatrix, https://www.rdocumentation.org/packages/caret/versions/3.45/topics/confusionMatrix
 
@@ -524,3 +633,7 @@ Si además visualizamos la curva ROC del modelo entrenado con Random Forest pode
 
 [12] DATANOVIA, INTER-RATER RELIABILITY MEASURES IN R: Cohen’s Kappa in R: For Two Categorical Variables
 , https://www.datanovia.com/en/lessons/cohens-kappa-in-r-for-two-categorical-variables/#interpretation-magnitude-of-the-agreement
+
+[13] StackExchange, How do the number of imputations & the maximum iterations affect accuracy in multiple imputation?, https://stats.stackexchange.com/questions/219013/how-do-the-number-of-imputations-the-maximum-iterations-affect-accuracy-in-mul/219049
+
+[X] Andrie de Vries and Joris Meys, How to Take Samples from Data in R, https://www.dummies.com/programming/r/how-to-take-samples-from-data-in-r/
