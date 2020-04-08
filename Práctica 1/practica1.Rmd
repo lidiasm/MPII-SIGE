@@ -125,7 +125,8 @@ Para realizar este preprocesamiento vamos a hacer uso de la función `nearZeroVa
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 eliminar_columnas_sd<-function(datos, eliminar_todas) {
-  # Convertimos todas las variables a variables numéricas.
+  # Convertimos todas las variables a variables numéricas
+  # escepto isFraud porque cambia 0->1 y 1->2
   for(i in c(1:ncol(datos))) {
     if (names(datos[i]) != "isFraud") {
       datos[,i] <- as.numeric(datos[,i])
@@ -494,12 +495,14 @@ Si además visualizamos la curva ROC del modelo entrenado con Random Forest pode
 En este segundo preprocesamiento vamos a partir del conjunto de datos de entrenamiento original. El primer paso que vamos a realizar es **balancear la clase `isFraud`** y así también reducir la dimensionalidad del conjunto. El objetivo consiste en preprocesar los datos de modo que no exista una clase mayoritaria y así  aplicar las siguientes técnicas sobre un conjunto de datos ya balanceado.
 
 ```{r message=FALSE, warning=FALSE}
-library(plyr)
 # Balanceamos las clases tomando todas las transacciones
 # positivas y el mismo número de transacciones negativas
 train_m2<-under_sampling(train)
 # Comprobamos que ambas clases se encuentran balanceadas
-count(train_m2, vars = "isFraud")
+cat("\nTransacciones NO fraudulentas (clase 0)\n")
+length(train_m2$isFraud[train_m2$isFraud==0])
+cat("\nTransacciones SI fraudulentas (clase 1)\n")
+length(train_m2$isFraud[train_m2$isFraud==1])
 ```
 
 Como podemos observar hemos pasado de tener más de 100.000 registros a solo disponer de 11.318 en cada clase lo que hace un total de **22.636 muestras**. Una vez disponemos del conjunto de datos balanceado, comenzamos a eliminar las columnas con más de un 50% de NAs y aquellas con desviación estándar igual a 0, como hicimos en el primer procesamiento.
@@ -531,8 +534,6 @@ Una vez disponemos de un primer conjunto con menos NAs, vamos a calcular la medi
 
 En este segundo preprocesamiento, a diferencia del anterior, no vamos a estudiar la correlación entre `isFraud` y el resto de variables puesto que no vamos a eliminar ninguna que tenga una baja correlación. En su lugar aplicaremos el **algoritmo PCA** para reducir el número de variables. Sin embargo, previamente vamos a sustituir los *outliers* con la función que implementa la fórmula también aplicada en el anterior preprocesamiento.
 
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 ```{r message=FALSE, warning=FALSE}
 # Cargamos el dataset desde el fichero
 train_m2_cart<-read.csv(file="./train_m2_cart.csv", header=TRUE, sep=",")
@@ -556,7 +557,7 @@ cat("\nTras eliminar variables correladas > 0.75\n")
 dim(train_m2_mean)
 ```
 
-Tal y como podemos observar, de nuevo la fórmula para normalizar los *outliers* no termina de completar su objetivo, puesto que siguen quedando este tipo de valores tras aplicar la técnica. Sin embargo, en este segundo preprocesamiento también los dejaremos en el *dataset*. Una segunda consecuencia de haber tratado los *outliers* consiste en la generación de **nuevas columnas con desviación estándar igual a 0**. Este hecho ha sido descubierto al obtener un error aplicando el PCA referente a la imposibilidad de tratar variables con desviación estándar 0. Por lo que, de nuevo, volveremos a aplicar una reducción de las variables con esta cualidad. De este modo hemos pasado de disponer de **151 variables a 125**.
+Tal y como podemos observar, de nuevo la fórmula para normalizar los *outliers* no termina de completar su objetivo, puesto que siguen quedando este tipo de valores tras aplicar la técnica. Sin embargo, en este segundo preprocesamiento también los dejaremos en el *dataset*. Una segunda consecuencia de haber tratado los *outliers* consiste en la generación de **nuevas columnas con desviación estándar igual a 0**. Este hecho ha sido descubierto al obtener un error aplicando el PCA referente a la imposibilidad de tratar variables con desviación estándar 0. Por lo que, de nuevo, volveremos a aplicar una reducción de las variables con esta cualidad. De este modo hemos pasado de disponer de **151 variables a 125**. Como todavía es un número considerable de variables, el siguiente paso es **aplicar el PCA** para realizar combinaciones de las anteriores variables y así reducir su dimensionalidad. 
 
 ```{r message=FALSE, warning=FALSE}
 # Estudio de los outliers
@@ -573,24 +574,41 @@ train_m2_out<-eliminar_columnas_sd(train_m2_out, FALSE)
 cat("\nDimensión tras eliminar de nuevo columnas con sd=0\n")
 dim(train_m2_out)
 
-# Aplicamos el PCA
+# Aplicamos el PCA con un 80% de máxima varianza
+# según el estudio realizado.
 train_pca<-pca(train_m2_out, 0.8)
+cat("\nDimensión tras aplicar el PCA con 80% de varianza\n")
 dim(train_pca)
 ```
 
+Si bien se puede especificar la máxima varianza que deben explicar las variables, para determinar el valor con mejor relación *calidad~número de variables* he entrenado modelos con valores 0.8, 0.85 y 0.9. Los resultados obtenidos se pueden visualizar en las siguientes tablas para Naive Bayes y Random Forest, respectivamente.
+
+| Atributos | 0.7 | 0.8 | 0.9  |
+|---|---|---|---|
+| Nº variables  | 35  | 49  | 70  |
+| Precisión  |  70% | 71%  | 71%  |
+| Kappa  | 41%  | 42%  |  43% |
+
+| Atributos | 0.7 | 0.8 | 0.9  |
+|---|---|---|---|
+| Nº variables  | 35  | 49  | 70  |
+| Precisión  | 80% | 81%  | 81%  |
+| Kappa  | 61% | 62%  |  63% |
+
+Tal y como se puede observar, no existen grandes diferencias entre los tres umbrales de máxima varianza. Existe cierta mejoría del 70% al 80% tanto en *accuracy* como en el coeficiente de *Kappa* mientras que el aumento del número de variables no es demasiado significativo. Por el contrario, entre el 80%-90% sí podemos observar que el número de columnas se incrementa bastante en relación con la poca mejoría que ello conlleva. Por lo tanto para aplicar el algoritmo **PCA se establece un umbral del 80%**.
+
 ```{r}
+# Transformamos la variable a predecir de numérica a factor para 
+# que los modelos la detecten y realicen las predicciones
+train_pca$isFraud<-as.factor(train_pca$isFraud)
 # Dividimos el conjunto final en 70% entrenamiento y 30% test
-train_pca<-train_pca %>% mutate(isFraud = as.factor(ifelse(isFraud == 1, 0, 1)))
 datos<-get_train_test(train_pca, 0.7)
-
-
-cat("\nConjunto de entrenamiento\n")
+# Mostramos el resultado
+cat("Conjunto de entrenamiento\n")
 dim(datos$train)
 cat("\nConjunto de test\n")
 dim(datos$test)
 cat("\n")
-
-############## INTENTAR CAMBIAR LOS 1->0 Y 2->1
 
 # MODELO NAIVE BAYES
 set.seed(32)
@@ -600,12 +618,50 @@ modelo_nb<-naiveBayes(isFraud~., data = datos$train)
 # Obtenemos las predicciones y matriz de confusión
 calidad_nb<-calidad_modelo(modelo_nb, datos$test, datos$test$isFraud)
 confusionMatrix(calidad_nb$conf, positive='1')
-
-
-predicciones<-predict(modelo_nb, datos$test)
 ```
 
+El modelo entrenado con **Naive Bayes** ha obtenido una precisión del 70% bajo un coeficiente de Kappa del 41%. En comparación con los resultados del anterior modelo podemos observar que este ha empeorado ligeramente puesto que el valor de Kappa es bastante más bajo que el anterior. Acompañando a este fenómeno se encuentra la matriz de confusión en la que podemos visualizar que prácticamente se equivoca en un 30% indicando que una transacción es fraudulenta cuando no lo es, y algo más para el caso contrario. A continuación se aprecia la curva ROC de este clasificador.
 
+```{r message=FALSE, warning=FALSE}
+# Dibujamos la curva ROC del modelo de Naive Bayes
+curva_roc(calidad_nb$preds, datos$test$isFraud)
+```
+
+En este gráfico podemos observar que la capacidad de generalización de este clasificador es algo más baja que en la del primer preprocesamiento, aunque son bastante similares. Si resumimos los datos podemos determinar que pese a haber introducido tres cambios con respecto al preprocesamiento anterior (no estudiar la correlación entre las variables~isFraud, imputar NAs en lugar de borrarlos y utilizar el PCA para eliminar más columnas) este clasificador presenta un comportamiento muy parecido puesto que sigue fallando en aproximádamente un 30% de ocasiones. Tanto el valor de *Kappa* como la precisión han disminuido puesto que el volumen de datos de validación es mayor, y por lo tanto, con un grupo más grande de datos se pueden realizar un mayor número de tests y por ende se computa un mayor número de fallos.
+
+```{r}
+# MODELO RANDOM FOREST
+set.seed(32)
+library(randomForest)
+# Entrenamos el modelo utilizando todas las características
+modelo_rf<-randomForest(formula=isFraud~., data = datos$train, ntree=100)
+# Obtenemos las predicciones y matriz de confusión
+calidad_rf<-calidad_modelo(modelo_rf, datos$test, datos$test$isFraud)
+confusionMatrix(calidad_rf$conf, positive='1')
+```
+
+En el caso del modelo entrenado con **Random Forest** podemos apreciar que los resultados también son peores con respecto al del primer preprocesamiento. En este caso se obtiene una precisión del 81% con un coeficiente de *Kappa* aproximadamente del 63%. De nuevo se puede observar una tendencia a la alza de errores al clasificador una transacción fraudulenta como una no fraudulenta, por lo que si en ambas técnicas sucede quiere decir que los datos no son lo suficientemente representativos como para terminar de diferenciar ambas clases. Sin embargo, este clasificador no ha empeorado tanto como el de Naive Bayes basándome en el valor de *Kappa* puesto que si bien no alcanza el valor óptimo del 80%, no ha bajado 20 puntos como ocurrió con el anterior. Esto nos indica que *Random Forest* es una técnica más robusta frente a la variación de los datos. Este hecho acompaña a la visualización de la **curva ROC** puesto que es muy parecida a la del primer preprocesamiento puesto que su área solo ha descendido dos puntos.
+
+```{r message=FALSE, warning=FALSE}
+# Dibujamos la curva ROC del modelo de Naive Bayes
+curva_roc(calidad_rf$preds, datos$test$isFraud)
+```
+
+### Conclusiones
+
+Hasta el momento hemos realizado dos preprocesamientos diferentes. Las conclusiones que podemos determinar hasta el momento comparando los modelos entrenados con sendos son las siguientes:
+
+* No es beneficioso submuestrear el conjunto al comienzo del preprocesamiento puesto que existen muy pocas transacciones positivas y al realizarlo de forma aleatoria podemos perder muchas de ellas, como ha surgido en la primera combinación.
+
+* Aunque es una técnica mucho más costosa computacionalmente y puede presentar ciertas dificultades es mejor imputarlos valores perdidos que eliminar las filas que los contengan puesto que se pierden muchos registros y se reduce drásticamente el conjunto de datos con el que entrenar y validar.
+
+* La fórmula utilizada para tratar los *outliers* tiene la desventaja de que estos son pasados por alto si no superan un determinado umbral. Si bien es un método muy sencillo para una primera aproximación, no creo que sea el más conveniente para utilizar.
+
+* **Naive Bayes** es una técnica sencilla y rápida con la que entrenar un clasificador binario pero es muy sensible a la variación de los datos por lo que sus clasificadores no generalizan bien. Mientras que **Random Forest** es un poco más costosa computacionalmente pero mucho más robusta a las características cambiantes de los datos por lo que sus clasificadores tienen mejor capacidad de predicción y no han presentado diferencias significativas en ambos preprocesamientos.
+
+## Modelos del tercer preprocesamiento
+
+En
 
 # Bibliografía
 
@@ -636,4 +692,3 @@ predicciones<-predict(modelo_nb, datos$test)
 
 [13] StackExchange, How do the number of imputations & the maximum iterations affect accuracy in multiple imputation?, https://stats.stackexchange.com/questions/219013/how-do-the-number-of-imputations-the-maximum-iterations-affect-accuracy-in-mul/219049
 
-[X] Andrie de Vries and Joris Meys, How to Take Samples from Data in R, https://www.dummies.com/programming/r/how-to-take-samples-from-data-in-r/
