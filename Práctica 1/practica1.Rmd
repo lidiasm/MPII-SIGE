@@ -294,7 +294,12 @@ pca<-function(datos, umbral) {
 
 ## Balanceo de la clase a predecir
 
-En esta última sección se tratará el desbalanceo de la clase `isFraud` con la que debemos entrenar los modelos para poder predecir si una transacción es fraudulenta o no. Como hemos podido observar en el análisis exploratorio, la gran mayoría de muestras son transacciones no fraudulentas (cerca del 96%) mientras que la clase minoritaria es la asociada a las transacciones fraudulentas. Este tipo de problemas es bastante común, pero en el caso de este dataset **es súmamente desproporcionado**. Para intentar paliar este inconveniente se van a aplicar dos de las técnicas más populares: **undersampling y oversampling**. En el primer caso se obtendrá un subconjunto de datos en el que se iguale el número de muestras de ambas clases, es decir, se escogerán tantas muestras de transacciones no fraudulentas al azar como ejemplos de transacciones fradulentas haya [downsample]. Con esta técnica el conjunto de datos se reducirá drásticamente, lo cual provocará una serie de consecuencias que analizaremos posteriormente al entrenar los modelos.
+En esta penúltima sección se tratará el desbalanceo de la clase `isFraud` con la que debemos entrenar los modelos para poder predecir si una transacción es fraudulenta o no. Como hemos podido observar en el análisis exploratorio, la gran mayoría de muestras son transacciones no fraudulentas (cerca del 96%) mientras que la clase minoritaria es la asociada a las transacciones fraudulentas. Este tipo de problemas es bastante común, pero en el caso de este dataset **es súmamente desproporcionado**. Para intentar paliar este inconveniente se van a aplicar dos de las técnicas más populares: **undersampling y oversampling**. En el primer caso se obtendrá un subconjunto de datos en el que se iguale el número de muestras de ambas clases, es decir, se escogerán todas las muestras positivas y el mismo número de negativas aleatoriamente, ya que es la clase mayoritaria.
+Mientras que con la segunda técnica el objetivo es producir muestras de transacciones fraudulentas para poder disponer de un mayor conjunto de datos.
+
+Para aplicar *undersampling* se hará uso de la función `downSample` [10] la cual se encargará de llevar a cabo el procedimiento descrito anteriormente. Con esta técnica se prevee una reducción muy drástica del número de muestras que posteriormente comprobaremos cómo afecta a los modelos entrenados.
+
+Para la técnica *oversampling* existen varias funciones con las que poder aplicarla y por ello he escogido la más popular denominada `SMOTE` [11]. Con ella se puede llevar a cabo esta operación pero también se puede combinar con la contraria para conseguir balancear las clases. De este modo aumenta el número de ejemplos para la clase minoritaria mientras que reduce el número de muestras de la clase mayoritaria para encontrar un equilibrio entre ambas. Para ello es necesario especificar el porcentaje de muestras a crear para la clase mayoritaria y el porcentaje para eliminar ejemplos de la mayoritaria.
 
 ```{r}
 under_sampling<-function(datos) {
@@ -308,11 +313,20 @@ under_sampling<-function(datos) {
   # Devolvemos los datos resultantes
   datos_finales
 }
+
+over_sampling<-function(datos, p_over, p_under, k_vecinos) {
+  library(DMwR)
+  # Oversampling con el algoritmo SMOTE para generar más muestras
+  datos$isFraud<-as.factor(datos$isFraud)
+  datos_finales<-SMOTE(isFraud ~., datos, perc.over=p_over, perc.under=p_under, k=k_vecinos)
+  # Devolvemos los datos resultantes
+  datos_finales
+}
 ```
 
 ## División del conjunto de datos
 
-Por último vamos a introducir una función cuyo objetivo consiste en dividir un conjunto de datos en **entrenamiento y validación**. La razón de ser reside en la posibilidad de poder calcular un mayor número de medidas de calidad tras validar los modelos con el conjunto de test más que considerar solamente la tasa de error que nos devolvería Kaggle si subimos los datos. Para ello vamos a hacer uso de la función `createDataPartition`[] a la cual se le proporciona el conjunto de datos a dividir especificando la variable a predecir, el número de muestras para el conjunto de entrenamiento y el número de particiones.
+Por último vamos a introducir una función cuyo objetivo consiste en dividir un conjunto de datos en **entrenamiento y validación**. La razón de ser reside en la posibilidad de poder calcular un mayor número de medidas de calidad tras validar los modelos con el conjunto de test más que considerar solamente la tasa de error que nos devolvería Kaggle si subimos los datos. Para ello vamos a hacer uso de la función `createDataPartition`[12] a la cual se le proporciona el conjunto de datos a dividir especificando la variable a predecir, el número de muestras para el conjunto de entrenamiento y el número de particiones.
 
 ```{r}
 get_train_test<-function(datos, porcentaje_train) {
@@ -366,7 +380,7 @@ curva_roc<-function(predicciones, etiquetas) {
 }
 ```
 
-Del mismo modo procedo con la siguiente función que encapsula el código general para poder entrenar un modelo con Naive Bayes o con Random Forest. Al finalizar mostrará información acerca de los parámetros de calidad del modelo obtenido como la matriz de confusión, la precisión o *accuracy*, entre otros. Para ello haremos uso de la función `confusionMatrix` [10] para obtener más información acerca del modelo a partir de la propia matriz de confusión.
+Del mismo modo procedo con la siguiente función que encapsula el código general para poder entrenar un modelo con Naive Bayes o con Random Forest. Al finalizar mostrará información acerca de los parámetros de calidad del modelo obtenido como la matriz de confusión, la precisión o *accuracy*, entre otros. Para ello haremos uso de la función `confusionMatrix` [13] para obtener más información acerca del modelo a partir de la propia matriz de confusión.
 
 ```{r}
 entrenar_modelo<-function(tecnica, train, test, clase_positiva) {
@@ -475,9 +489,9 @@ m1_nb<-entrenar_modelo('NB', datos$train, datos$test, '1')
 m1_nb$info
 ```
 
-Si bien la documentación oficial de la función `confusionMatrix` no aporta información acerca de los atributos mostrados, he encontrado un ejemplo [11] en el que se detallan cada uno de ellos. En primer lugar destacamos que la **precisión del modelo es de un 74%**, valor que se encuentra dentro de un intervalo al 95%, lo que nos asegura casi con totalidad que la precisión del modelo mostrada es verídica. Por otro lado podemos observar en el atributo *No Information Rate* cómo la función ha detectado el balanceado de la clase `isFraud` puesto que este valor indica que no existe una mayor representación de una clase y por ende el clasificador no se ve influido por una clase mayoritaria.
+Si bien la documentación oficial de la función `confusionMatrix` no aporta información acerca de los atributos mostrados, he encontrado un ejemplo [14] en el que se detallan cada uno de ellos. En primer lugar destacamos que la **precisión del modelo es de un 74%**, valor que se encuentra dentro de un intervalo al 95%, lo que nos asegura casi con totalidad que la precisión del modelo mostrada es verídica. Por otro lado podemos observar en el atributo *No Information Rate* cómo la función ha detectado el balanceado de la clase `isFraud` puesto que este valor indica que no existe una mayor representación de una clase y por ende el clasificador no se ve influido por una clase mayoritaria.
 
-Si nos fijamos en un campo denominado *Kappa* podemos conocer cuán bueno es el clasificador entrenado frente a otro que escoge las etiquetas al azar. El objetivo es conocer si el clasificador obtenido, en este caso por Naive Bayes, realmente está prediciendo las etiquetas o las clasifica más aleatoriamente. Investigando más acerca de la repercusión de este valor [12] se considera que un modelo es confiable cuando este valor se encuentra **por encima del 80%**, lo que significa que apenas presenta cierta aleatoriedad en sus clasificaciones. En este caso podemos apreciar que nuestro valor es del 47%, lo que significa que en más de **la mitad de las etiquetas coincide con un clasificador aleatorio**. Tal y como se explica en la fuente [13], la gravedad de estos resultados dependen del ámbito en el que se encuentre y considerando la capacidad de detectar transacciones fraudulentas, podemos determinar que **este clasificador no es para nada competitivo** dentro de un ámbito real.
+Si nos fijamos en un campo denominado *Kappa* podemos conocer cuán bueno es el clasificador entrenado frente a otro que escoge las etiquetas al azar. El objetivo es conocer si el clasificador obtenido, en este caso por Naive Bayes, realmente está prediciendo las etiquetas o las clasifica más aleatoriamente. Investigando más acerca de la repercusión de este valor [15] se considera que un modelo es confiable cuando este valor se encuentra **por encima del 80%**, lo que significa que apenas presenta cierta aleatoriedad en sus clasificaciones. En este caso podemos apreciar que nuestro valor es del 47%, lo que significa que en más de **la mitad de las etiquetas coincide con un clasificador aleatorio**. Tal y como se explica en la fuente [16], la gravedad de estos resultados dependen del ámbito en el que se encuentre y considerando la capacidad de detectar transacciones fraudulentas, podemos determinar que **este clasificador no es para nada competitivo** dentro de un ámbito real.
 
 ```{r message=FALSE, warning=FALSE}
 # Dibujamos la curva ROC del modelo de Naive Bayes
@@ -534,7 +548,7 @@ cat("Dimensiones tras borrar columnas > 50% NAs y con sd=0\n")
 dim(train_m2)
 ```
 
-En primer lugar cabe destacar que este proceso es **muy costoso computacionalmente** por la gran cantidad de columnas que disponemos. Asimismo, cuanto más sofisticado sea el método a aplicar, más tiempo tardará en imputar los valores NA. Según esta fuente [12] a mayor número de imputaciones e iteraciones mejor resultado obtendremos al transformar los valores perdidos por los valores predichos. Sin embargo, tras realizar muchas pruebas he comprobado que para ciertas columnas **no existe suficiente información como para imputar todos los NAs** y que independientemente del número de iteraciones/imputaciones, el *dataset* resultante sigue conteniendo valores perdidos. Por lo tanto, a continuación se aplica la configuración que mejor relación calidad~tiempo he conseguido para imputar la mayoría de los valores NAs. Con ella pasamos de tener **988.826 valores perdidos a 11.003**, lo cual podemos determinar que es una gran reducción. Como anteriormente he comentado, este proceso es súmamente costoso y por ello solo se ha realizado una vez guardando en un fichero el *dataset* obtenido hasta el momento para sus posteriores usos.
+En primer lugar cabe destacar que este proceso es **muy costoso computacionalmente** por la gran cantidad de columnas que disponemos. Asimismo, cuanto más sofisticado sea el método a aplicar, más tiempo tardará en imputar los valores NA. Según esta fuente [17] a mayor número de imputaciones e iteraciones mejor resultado obtendremos al transformar los valores perdidos por los valores predichos. Sin embargo, tras realizar muchas pruebas he comprobado que para ciertas columnas **no existe suficiente información como para imputar todos los NAs** y que independientemente del número de iteraciones/imputaciones, el *dataset* resultante sigue conteniendo valores perdidos. Por lo tanto, a continuación se aplica la configuración que mejor relación calidad~tiempo he conseguido para imputar la mayoría de los valores NAs. Con ella pasamos de tener **988.826 valores perdidos a 11.003**, lo cual podemos determinar que es una gran reducción. Como anteriormente he comentado, este proceso es súmamente costoso y por ello solo se ha realizado una vez guardando en un fichero el *dataset* obtenido hasta el momento para sus posteriores usos.
 
 ```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
 # Primera imputación de NAs utilizando clasificación y arboles de decisión ('cart')
@@ -786,6 +800,114 @@ En esta subsección vamos a analizar los efectos producidos por el segundo y el 
 
 * En relación a la correlación y el PCA, si comparamos los resultados obtenidos en esta última modificación con los del segundo preprocesamiento podemos observar que los clasificadores entrenados previa **aplicación del PCA proporcionan peores resultados generales** que estudiando la correlación entre las variables y la variable a predecir. Especialmente en el caso de los entrenados con *Random Forest* que llegan a bajar hasta 10 puntos tanto en precisión como en el coeficiente de *Kappa*. Este hecho nos indica que para nuestro problema no es beneficioso aplicar el algoritmo PCA puesto que el *dataset* que obtiene solo dispone de columnas resultantes de combinaciones lineales. Por ende, estamos perdiendo información de las variables originales que, según hemos experimentado, es más útil para obtener clasificadores más competentes.
 
+## Modelos del cuarto preprocesamiento
+
+Una vez conocemos la combinación de técnicas de preprocesamiento que mejores resultados proporciona hasta el momento, en esta sección vamos a introducir una nueva modificación. Consiste en generar un mayor número de datos con el objetivo de comprobar si los clasificadores mejoran su capacidad de predicción. Para ello aplicaremos la técnica *oversampling* utilizando las dos funciones presentadas anteriormente con el fin de comparar los resultados que proporcionan. Ambas requieren que **no existan valores perdidos** por lo que hay que imputarlos previamente. Por ello, vamos a establecer como conjunto inicial aquel compuesto por 50.000 muestras escogidas de forma aleatoria utilizando, para ello, la función `sample` [18]. Será a este conjunto al que se le aplicará el preprocesamiento que mejores resultados hemos obtenido y al que al final se balanceará la clase `isFraud` mediante *oversampling*. 
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Escogemos 50.000 muestras aleatorias del conjunto inicial
+train_m4 <- train[sample(nrow(train), 50000, replace = FALSE, prob = NULL),]
+# Aplicamos el mejor preprocesamiento hasta el momento.
+## Elinamos columnas con + 50% NAs y con sd=0
+train_m4<-eliminar_columnas_nas(train_m4)
+train_m4<-eliminar_columnas_sd(train_m4)
+```
+
+En este punto disponemos de un *dataset* con **50.000 registros y 301 variables** que pasamos a imputar para predecir los valores una única vez utilizando, para ello, un primer método *cart* y luego la media para los NAs restantes. Luego almacenaremos el conjunto de datos resultante en un fichero para que en posteriores usos solo haya que leerlo y no volver a realizar este preprocesamiento tan costoso.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+## Imputamos los valores perdidos con "cart" y los restantes con la media.
+train_m4_cart<-imputar_nas(train_m4, 1, 1, "cart")
+train_m4_mean<-replace(train_m4_cart, TRUE, lapply(train_m4_cart, asignar_media))
+## Almacenamos el dataset resultante en un fichero porque este proceso es muy costoso
+write.csv(train_m4_mean,'train_m4_mean.csv', row.names = FALSE, col.names=TRUE)
+```
+
+A continuación eliminamos las variables muy correladas y las columnas con bajo coeficiente de correlación con respecto a `isFraud`. Al realizar este último paso he podido comprobar que el *datset* resultante solo contaba con 22 columnas. Me han parecido demasiado pocas y por ello he realizado un estudio acerca del impacto que tiene este preprocesamiento en los modelos predictivos. Este se muestra más adelante. Y finalmente aplicamos la fórmula para realizar un tratamiento sobre los *outliers*.
+
+```{r message=FALSE, warning=FALSE}
+## Cargamos el dataset desde el fichero
+train_m4_mean<-read.csv(file="./train_m4_mean.csv", header=TRUE, sep=",")
+
+## Correlación entre variables
+train_m4_corr<-correlacion_variables(train_m4_mean, 0.75)
+cat("Dimensión del conjunto tras la correlación entre variables\n")
+dim(train_m4_corr)
+## Correlación entre variables ~ isFraud
+tabla_corr<-correlacion_fraude(train_m4_corr)
+## Obtenemos las variables con correlación entre -0.03 y 0.03
+tabla_corr_baja<-tabla_corr %>% filter(isFraud > -0.03 & isFraud < 0.03)
+## Las eliminamos
+train_m4_corr<-
+  train_m4_corr[, -which(colnames(train_m4_corr) %in% tabla_corr_baja$Variable)]
+cat("\nDimensión del conjunto tras la correlación entre variables~isFraud\n")
+dim(train_m4_corr)
+
+## Tratamiento de outliers con la fórmula
+train_m4_out<-outliers_formula(train_m4_corr)
+```
+
+Una vez disponemos del conjunto de datos preprocesado, vamos a balancear la clase `isFraud`. En el subconjunto que hemos escogido existen menos de 4.000 transacciones fraudulentas por lo que es necesario ampliar este número de muestras. Para ello aplicamos la función considerada anteriormente y tras varios experimentos ajustando el número de muestras para cada clase, la configuración con la que menos diferencia existe es la que se presenta a continuación obteniendo un conjunto con **28.072 muestras negativas y 27.993 muestras positivas**. De este modo tenemos un *dataset* con un número de registros muy similar al conjunto de partida inicial.
+
+```{r message=FALSE, warning=FALSE}
+cat("Nº de transacciones NO fraudulentas\n")
+dim(train_m4_out[train_m4_out$isFraud==0,])
+cat("\nNº de transacciones SÍ fraudulentas\n")
+dim(train_m4_out[train_m4_out$isFraud==1,])
+
+train_m4_smote<-over_sampling(train_m4_out, 600, 117, 5)
+cat("\nTras balancear nº de transacciones NO fraudulentas\n")
+dim(train_m4_smote[train_m4_smote$isFraud==0,])
+cat("\nTras balancear nº de transacciones SÍ fraudulentas\n")
+dim(train_m4_smote[train_m4_smote$isFraud==1,])
+```
+
+Cuando ya disponemos de nuestro conjunto de datos final para esta cuarta sección, dividimos el conjunto en entrenamiento y validación y procedemos a entrenar los modelos. Como anteriormente he comentado he realizado un estudio acerca de la influencia de quitar más o menos variables en función de la correlación con `isFraud`. Los resultados se pueden visualizar en las dos siguientes tablas para los modelos entrenados con Naive Bayes y Random Forest, respectivamente.
+
+| Naive Bayes | 22 | 37 | 57 | 92 | 105 |
+|---|---|---|---|---|---|
+| Accuracy  | 78.39%  | 81.35%  | 83.93%  | 83.36% | 83.83% |
+| Kappa  |  56.78% | 62.7%  | 67.86%  | 66.73% | 67.65% |
+
+| Random Forest | 22 | 37 | 57 | 92 | 105 |
+|---|---|---|---|---|---|
+| Accuracy  | 94.02%  | 95.28%  | 95.55%  | 95.71% | 95.74% |
+| Kappa  |  88.04% | 90.57%  | 91.1%  | 91.41% | 91.47% |
+
+Tal y como se puede observar la tendencia general consiste en que cuantas más variables se eliminan, peor es el resultado. Sin embargo mayor tiempo se invierte en entrenar el clasificador, especialmente con Random Forest. Por lo tanto, de entre todos los experimentos el que mejor relación calidad~tiempo muestra es aquel que dispone de **57 variables**, lo que se transforma en eliminar aquellas columnas con un **coeficiente de correlación entre -0.03 y 0.03 con respecto a `isFraud`**.
+
+```{r message=FALSE, warning=FALSE}
+# Transformamos la variable a predecir en factor
+train_m4_smote$isFraud<-as.factor(train_m4_smote$isFraud)
+# Dividimos el conjunto final en 70% entrenamiento y 30% test
+datos<-get_train_test(train_m4_smote, 0.7)
+
+# MODELO NAIVE BAYES
+m4_nb<-entrenar_modelo('NB', datos$train, datos$test, '1')
+m4_nb$info
+curva_roc(m4_nb$calidad$preds, datos$test$isFraud)
+```
+
+Como podemos observar, en el clasificador entrenado con **Naive Bayes** los resultados son súmamente mejores con respecto a los otros preprocesamientos tanto a nivel de precisión como en el coeficiente de *Kappa*. Este hecho también se refleja en su curva ROC cuya área es más amplia que en los anteriores clasificadores. Por lo que podemos concluir que para esta técnica y para nuestro problema, disponer de una **mayor cantidad de datos es ventajoso** para poder mejorar la capacidad de predicción.
+
+```{r message=FALSE, warning=FALSE}
+# MODELO RANDOM FOREST
+m4_rf<-entrenar_modelo('RF', datos$train, datos$test, '1')
+m4_rf$info
+curva_roc(m4_rf$calidad$preds, datos$test$isFraud)
+```
+
+Del mismo modo sucede con el clasificador entrenado mediante **Random Forest** en el que especialmente se nota la mejoría tanto en la precisión pero sobre todo en el coeficiente de *Kappa* que supera por diez puntos ese 80% recomendado para determinar que **es un clasificador competente**. Asimismo, este hecho acompaña la drástica reducción de falsos positivos, por lo que para este clasificador en concreto el hecho de disponer de un mayor número de datos ha sido beneficioso para detectar cuándo las transacciones no son fraudulentas. Esta mejoría también se refleja en la **curva ROC** cuya área y amplitud es la mayor hasta ahora conseguida con casi un **95.5%**, lo cual es un gran resultado considerando las medidas anteriores.
+
+### Conclusiones
+
+En este apartado exponemos las conclusiones a las que he llegado de este cuarto preprocesamiento en comparación con los anteriores.
+
+* En primer lugar cabe destacar que si bien un **atributo no está muy correlacionado con la variable a predecir no significa que no aporte información útil** que ayude a clasificar, en nuestro caso una transacción. Por lo tanto, se debe tener cuidado a la hora de eliminar columnas en función del coeficiente de correlación.
+
+* Asimismo se puede intuir que **a mayor número de datos** tanto de entrenamiento como de validación, **más confiable es el clasificador**. Así se ha reflejado en el coeficiente de *Kappa*, que especialmente en el caso del modelo entrenado con Random Forest ha proporcionado un valor superior al óptimo considerado para determinar que el clasificador realmente no está etiquetando las muestras al azar, sino que está utilizando lo aprendido. Lo cual demuestra que esta técnica es súmamente eficaz cuando se dispone de un conjunto de datos suficientemente amplio.
+
+
 # Bibliografía
 
 [1] Kaggle, IEEE-CIS Fraud Detection, https://www.kaggle.com/c/ieee-fraud-detection/data
@@ -806,12 +928,22 @@ En esta subsección vamos a analizar los efectos producidos por el segundo y el 
 
 [9] Documentación sobre la función preProcess, https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/preProcess
 
-[10] Documentación de la función confusionMatrix, https://www.rdocumentation.org/packages/caret/versions/3.45/topics/confusionMatrix
+[10] Documentación acerca de la función downSample, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/downSample
 
-[11] DEGREES OF BELIEF, COMMON EVALUATION MEASURES FOR CLASSIFICATION MODELS, https://degreesofbelief.roryquinn.com/common-evaluation-measures-for-classification-models
+[11] Documentación sobre la función SMOTE, https://www.rdocumentation.org/packages/DMwR/versions/0.4.1/topics/SMOTE
 
-[12] DATANOVIA, INTER-RATER RELIABILITY MEASURES IN R: Cohen’s Kappa in R: For Two Categorical Variables
+[12] Documentación acerca de la función createDataPartition, https://www.rdocumentation.org/packages/caret/versions/6.0-85/topics/createDataPartition
+
+[13] Documentación de la función confusionMatrix, https://www.rdocumentation.org/packages/caret/versions/3.45/topics/confusionMatrix
+
+[14] DEGREES OF BELIEF, COMMON EVALUATION MEASURES FOR CLASSIFICATION MODELS, https://degreesofbelief.roryquinn.com/common-evaluation-measures-for-classification-models
+
+[15] DATANOVIA, INTER-RATER RELIABILITY MEASURES IN R: Cohen’s Kappa in R: For Two Categorical Variables
 , https://www.datanovia.com/en/lessons/cohens-kappa-in-r-for-two-categorical-variables/#interpretation-magnitude-of-the-agreement
 
-[13] StackExchange, How do the number of imputations & the maximum iterations affect accuracy in multiple imputation?, https://stats.stackexchange.com/questions/219013/how-do-the-number-of-imputations-the-maximum-iterations-affect-accuracy-in-mul/219049
+[16] StackExchange, How do the number of imputations & the maximum iterations affect accuracy in multiple imputation?, https://stats.stackexchange.com/questions/219013/how-do-the-number-of-imputations-the-maximum-iterations-affect-accuracy-in-mul/219049
 
+[17] StackExchange, How do the number of imputations & the maximum iterations affect accuracy in multiple imputation?
+, https://stats.stackexchange.com/questions/219013/how-do-the-number-of-imputations-the-maximum-iterations-affect-accuracy-in-mul/219049
+
+[18] Documentación sobre la función sample, https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/sample
