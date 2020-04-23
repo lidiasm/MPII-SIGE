@@ -1,5 +1,6 @@
 ---
 title: "Deep Learning con conjunto de datos Titanic"
+author: "Lidia Sánchez Mérida"
 output:
   html_document:
     df_print: paged
@@ -17,10 +18,10 @@ set.seed(32)
 
 # Estudio de los datos
 
-Comenzamos leyendo el fichero de entrenamiento al completo y a continuación estudiamos el estado de los datos para comprobar aspectos tales como el porcentaje de valores perdidos en cada columna, además de cómo de balanceada está la clase a predecir. Como podemos observar existen tres columnas con valores perdidos con, aproximadamente un 0.2%, 20% y 77% respectivamente. En los dos primeros casos esta cifra no es demasiado elevada y por tanto se pueden aplicar técnicas para tratar de imputarlos, mientras que para la tercera columna el número de NAs es bastante superior al de valores normales por lo que en principio se descarta. 
-Asimismo, también podemos observar algunas columnas que no parecen ser relevantes para determinar si un pasajero sobrevivió o no, como el identificador del registro, su nombre o el número de ticket. Estos atributos también pueden ser omitidos.
+Comenzamos leyendo el fichero de entrenamiento al completo y a continuación estudiamos el estado de los datos para comprobar aspectos tales como el porcentaje de valores perdidos en cada columna, además de cómo de balanceada está la clase a predecir. Como podemos observar existen **tres columnas con valores perdidos** con, aproximadamente un 0.2%, 20% y 77% respectivamente. En los dos primeros casos esta cifra no es demasiado elevada y por tanto se pueden aplicar técnicas para tratar de imputarlos, mientras que para la tercera columna el número de NAs es bastante superior al de valores normales por lo que en principio se descarta. 
+Asimismo, también podemos observar algunas **columnas que no parecen ser relevantes** para determinar si un pasajero sobrevivió o no, como el identificador del registro, su nombre o el número de ticket. Estos atributos también pueden ser omitidos.
 
-En relación al balanceado de la clase a predecir podemos observar que existe un 61.62% de casos negativos y el resto positivos. Si bien podemos determinar que la clase se encuentra desbalanceada, no es tan exagerado como el *dataset* de la práctica 1.
+En relación al balanceado de la clase a predecir podemos observar que existe un **61.62% de casos negativos y el resto positivos**. Si bien podemos determinar que la clase se encuentra desbalanceada, no es tan exagerado como el *dataset* de la práctica 1.
 
 ```{r message=FALSE, warning=FALSE}
 library(readr)
@@ -34,10 +35,14 @@ df_status(train)
 # Preprocesamiento de datos
 
 En base al análisis anteriormente realizado y al *script* de ejemplo para este ejercicio se proponen las siguientes técnicas de preprocesamiento.
-* Se seleccionan los mismos atributos predictivos que en la primera versión de este ejercicio: `Pclass`, `Sex`, `Age`, `Fare`, puesto que conocemos su buena capacidad para predecir la variable `Survived`.
-* Imputamos los valores perdidos utilizando la función `mice` [1] puesto que ofrece la posibilidad de aplicar distintos métodos para predecir dichos valores. Esto es muy útil puesto que a veces las técnicas más sofitiscadas como clasificación o árboles de regresión pueden o disponer de información suficiente como para predecir el valor y, por tanto, hay que recurrir a técnicas más sencillas como la media.
-* Balanceamos la clase `Survived` aplicando la técnica conocida como *oversampling* de modo que generemos un mayor número de datos de la clase minoritaria. Para ello voy a utilizar la función `SMOTE` [2] puesto que es capaz de buscar un equilibrio entre el número de muestras de ambas clases. Además podremos disponer de un conjunto de datos más amplio, lo que puede suponer un plus a la hora de entrenar los modelos posteriormente.
-* Dividimos el conjunto completo en entrenamiento y validación para poder entrenar las distintas redes neuronales y testearlas posteriormente para comprobar la calidad de los modelos.
+
+* Se seleccionan los mismos **atributos predictivos** que en la primera versión de este ejercicio: `Pclass`, `Sex`, `Age`, `Fare`, puesto que conocemos su buena capacidad para predecir la variable `Survived`.
+
+* **Imputamos los valores perdidos** utilizando la función `mice` [1] puesto que ofrece la posibilidad de aplicar distintos métodos para predecir dichos valores. Esto es muy útil puesto que a veces las técnicas más sofitiscadas como clasificación o árboles de regresión pueden o disponer de información suficiente como para predecir el valor y, por tanto, hay que recurrir a técnicas más sencillas como la media.
+
+* **Balanceamos la clase `Survived`** aplicando la técnica conocida como *oversampling* de modo que generemos un mayor número de datos de la clase minoritaria. Para ello voy a utilizar la función `SMOTE` [2] puesto que es capaz de buscar un equilibrio entre el número de muestras de ambas clases. Además podremos disponer de un conjunto de datos más amplio, lo que puede suponer un plus a la hora de entrenar los modelos posteriormente.
+
+* Dividimos el conjunto completo en **entrenamiento y validación** para poder entrenar las distintas redes neuronales y testearlas posteriormente para comprobar la calidad de los modelos.
 
 ```{r message=FALSE, warning=FALSE, results='hide', echo=TRUE}
 
@@ -91,7 +96,7 @@ get_train_test<-function(datos, porcentaje_train) {
 
 # Modelos
 
-En esta sección vamos a entrenar diversos modelos aplicando diferentes técnicas de preprocesamiento así como modificando las características de la red neuronal. En primer lugar, con el objetivo de comprobar la influencia del tratamiento de datos en la capacidad de generalización de los clasificadores, vamos a aplicar técnicas como la imputación de NAs y el balanceado de clases para entrenar el modelo de ejemplo de GitHub. A continuación, en función de los mejores resultados, estableceremos un mismo preprocesamiento para comenzar a modificar la arquitectura y parámetros de la red neuronal.
+En esta sección vamos a entrenar diversos modelos aplicando diferentes técnicas de preprocesamiento así como modificando las características de la red neuronal. En primer lugar, con el objetivo de comprobar la influencia del tratamiento de datos en la capacidad de generalización de los clasificadores, vamos a aplicar técnicas como la **imputación de NAs y el balanceado de clases para entrenar el modelo de ejemplo de GitHub**. A continuación, en función de los mejores resultados, estableceremos un mismo preprocesamiento para comenzar a **modificar la arquitectura y parámetros** de la red neuronal.
 
 Para ello presentamos, a continuación, tres funciones con las cuales podremos obtener en primer lugar los conjuntos de entrenamiento y validación en formato matriz para entrenar la red neuronal. Este cometido lo lleva a cabo la segunda función a la que se le pasa el modelo de red generado así como el conjunto de entrenamiento. La última función tiene como fin validar el modelo préviamente entrenado proporcionando el conjunto de validación. Todos estos pasos son comunes al desarrollo de todos los modelos y por tanto se han modelado como funciones para no repetir código.
 
@@ -255,17 +260,17 @@ dim(datos$test)
 m_train<-get_conjunto_matriz(datos$train)
 m_test<-get_conjunto_matriz(datos$test)
 
-# Nuevo modelo: 3 capas, 1 oculta
+# Nuevo modelo: 3 capas, 1 oculta con relu
 library(keras)
 library(tensorflow)
 # Semilla para que los modelos sean reproducibless
 tensorflow::tf$random$set_seed(0)
 modelo3 <- keras_model_sequential()
 modelo3 <- modelo3 %>% 
-  layer_dense(units = 32, activation = "relu", input_shape = c(ncol(datos$train) - 1)) %>%
-  layer_dense(units = 1, activation = "sigmoid")
+   layer_dense(units = 32, activation = "relu", input_shape = c(ncol(datos$train) - 1)) %>%
+   layer_dense(units = 1, activation = "sigmoid")
 # Entrenamos y validamos el modelo
-entrenar_modelo(modelo3, m_train$dataset, m_train$etiquetas, 'binary_crossentropy', 'adam', 100, 10, 0.3)
+entrenar_modelo(modelo3, m_train$dataset, m_train$etiquetas, 'binary_crossentropy', 'adam', 100, 5, 0.3)
 validar_modelo(modelo3, m_test$dataset, m_test$etiquetas)
 ```
 
@@ -276,31 +281,62 @@ Adicionalmente también he realizado varias pruebas **variando el método de opt
 Siguiendo con las modificaciones de este modelo, he estado estudiando los parámetros de esta técnica de optimización para seguir mejorando el modelo. En primer lugar he variado la **tasa de aprendizaje** dentro del intervalo [0.001, 0.1], y he podido observar que a partir de 0.05 la precisión disminuye bastante. La razón de ser reside en que a mayor tasa de aprendizaje, menos profunda es la exploración del espacio y por tanto al acelerar el aprendizaje, podemos pasar por alto buenas soluciones.
 Otro de los parámetros que he probado es `AMSGrad` [4], el cual ofrece una variante del algoritmo `Adam` que parte de una tasa de aprendizaje menor y dispone de cierta memoria para normalizar la evolución del gradiente. Para nuestro problema los resultados son bastante similares por lo que no merece la pena incluir este experimento.
 
-Por último he intentado **añadir más capas ocultas** a la topología anterior, variando el número de neuronas en cada uno, y los resultados han sido peores que la arquitectura con una sola capa oculta. Este hecho también nos demuestra que no siempre añadir un mayor número de capas mejora el modelo predictivo puesto que si el problema es relativamente sencillo, basta con una única capa de neuronas para extraer la mayoría de características y entrenar un buen clasificador, como es nuestro caso. 
+De igual modo, también he experimentado con las distintas funciones de activación disponibles [5] para tratar de mejorar los resultados de este tercer modelo. Los resultados más destacables se exponen a continuación:
+
+* `hard_sigmoid`. Es una variación de la función sigmoidal que calcula una aproximación lineal del exponente, por lo que es más rápida computacionalmente [6]. Sin embargo, solo variando este parámetro en la capa de salida hemos conseguido resultados mucho peores con **precisión 73.78% y Kappa de 47.73%**, por lo que podemos determinar que para nuestro problema no podemos utilizar esta aproximación para mejorar la capacidad de predicción del clasificador.
+
+* `linear`. Aún sabiendo que no es de las mejores funciones de activación he querido probarla por curiosidad, y con este modelo he obtenido una **precisión del 77% y coeficiente de Kappa de 54%**. Esto nos indica que, pese a disponer de una función de activación más sencilla el clasificador obtenido prorporciona mejores resultados que en el caso anterior en el que se disponía de una función `relu` y una aproximación de la función sigmoidal. No obstante, no es un buen modelo puesto que el coeficiente de *Kappa* demuestra que aproximadamente en la mitad de ocasiones etiqueta las muestras al azar.
+
+* `softplus`. Es una función cuyo comportamiento es muy similar a `relu` solo que, a diferencia de esta, `softplus` dispone de una función exponencial y otra logaritmica, lo que provoca una convergencia más constante y suave cuando es cercana a 0 que la `relu`, aunque esta última es mucho más eficiente de calcular [6] [7]. Sin embargo, con esta función hemos conseguido mejorar un poquito la calidad de este tercer clasificador por lo que su experimento se adjunta en un cuarto modelo.
+
+Por último he intentado **añadir más capas ocultas** a la topología anterior, variando el número de neuronas en cada uno, y los resultados han sido peores que la arquitectura con una sola capa oculta. Este hecho también nos demuestra que no siempre añadir un mayor número de capas mejora el modelo predictivo. La razón de ser reside en un fenómeno denominado *overfitting* o sobreajuste por el cual la red se adapta demasiado a los datos de entrenamiento que pierde capacidad de generalización para datos que no ha visto aún. Este hecho sucede cuando existen un número de capas mayor que el necesario y el conjunto de datos no es suficientemente amplio. Como nuestro problema es sencillo y no dispone de muchas muestras, basta con una única capa oculta capaz de extaer la mayoría de características para entrenar un clasificador razonablemente bueno. 
 
 ## Modelo 4
 
-```{r}
-##################################
-## CAPA SOFTMAX
-# x_data<-m_train$dataset
-# y_data<-to_categorical(m_train$etiquetas, num_classes = 2)
-# library(keras)
-# model = keras_model_sequential() %>%   
-#   layer_dense(units = 64, activation = "relu", input_shape = ncol(x_data)) %>%
-#   layer_dense(units = 64, activation = "relu") %>%
-#   layer_dense(units = 64, activation = "relu") %>%
-#   layer_dense(units = ncol(y_data), activation = "softmax")
-# compile(model, loss = "categorical_crossentropy", optimizer = optimizer_rmsprop(), metrics = "accuracy")
-# history = fit(model,  x_data, y_data, epochs = 20, batch_size = 128, validation_split = 0.2)
-# # Preds
-# x_data_test<-m_test$dataset
-# y_data_test<-m_test$etiquetas
-# y_data_pred=predict_classes(model, x_data_test)
-# evaluate(model, x_data, y_data)
-# 
+En este último modelo se pretende mostrar la evolución del clasificador en su entrenamiento y validación así como las medidas de calidad del mismo. Para ello, como se ha comentado anteriormente, se ha utilizado la función de activación **`softplus` para la capa oculta** que es con la que he conseguido una ligera mejora con respecto al modelo anterior. 
+
+Si establecemos la misma configuración, salvando la nueva función de activación, obtenemos un **79.03% de precisión y 57.08% de Kappa**. Como podemos observar estos resultados no son mejores que los anteriores. Sin embargo, tras varios experimentos, aumentando el doble la cantidad de neuronas de la capa oculta podemos alcanzar aproximadamente una **precisión de 81% y un coeficiente de *Kappa* de 60.4%**. La necesidad de aumentar el número de neuronas con esta función reside en la fórmula que aplica puesto que es más costosa computacionalmente que la función `relu`. Por lo tanto es necesario un mayor número de neuronas para extraer las características suficientes como para aprender a diferenciar los casos positivos de los negativos. Sin embargo, como se puede visualizar en la evolución del entrenamiento y validación, esta función experimenta una considerable mejora al poco tiempo de comenzar a entrenar el modelo. Mientras que la función `relu` parte de un tasa de precisión inicial más alta pero durante el proceso, para nuestro problema, apenas mejora.
+
+De nuevo he intentado combinar esta configuración variando tanto los optimizadores como añadiendo más capas tanto con la misma función de activación como con `relu` pero los resultados siguen siendo algo peores, especialmente en el coeficiente de *Kappa* que puede bajar hasta un 5%.
+
+```{r message=FALSE, warning=FALSE}
+# Dividimos el conjunto en entrenamiento (70%) y validación (30%)
+datos<-get_train_test(train_imput, 0.7)
+cat("\nConjunto de entrenamiento\n")
+dim(datos$train)
+cat("\nDimensiones conjunto de validación\n")
+dim(datos$test)
+
+# Cambiamos el tipo de los conjuntos a matrices
+m_train<-get_conjunto_matriz(datos$train)
+m_test<-get_conjunto_matriz(datos$test)
+
+# Nuevo modelo: 3 capas, 1 oculta con softplus
+library(keras)
+library(tensorflow)
+# Semilla para que los modelos sean reproducibless
+tensorflow::tf$random$set_seed(0)
+modelo3 <- keras_model_sequential()
+modelo3 <- modelo3 %>% 
+  layer_dense(units = 64, activation = "softplus", input_shape = c(ncol(datos$train) - 1)) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+# Entrenamos y validamos el modelo
+entrenar_modelo(modelo3, m_train$dataset, m_train$etiquetas, 'binary_crossentropy', 'adam', 100, 5, 0.3)
+validar_modelo(modelo3, m_test$dataset, m_test$etiquetas)
 ```
 
+# Conclusiones
+
+Como hemos podido observar a lo largo del cuaderno, en base a los diferentes experimentos tanto mostrados como no, podemos determinar que la conclusión principal reside en la sencillez del problema. Esta característica da lugar a que los modelos con topología y configuración más sencilla sean los que mejores resultados proporcionan en términos principales de precisión y coeficiente de *Kappa*, como ha sido el caso de los dos últimos. Estos modelo se caracterizan por disponer de una sola capa oculta, la cual es capaz de extaer las características necesarias para determinar si una persona ha sobrevivido o no al accidente del Titanic. Asimismo, no están compuestos por un número alto de neuronas por lo que no albergan demasiada complejidad, y por ende, no son muy costosos computacionalmente. Es por ello por lo que he podido realizar tantas pruebas.
+
+Por otro lado hemos podido comprobar que por la baja cantidad de valores perdidos, el modelo entrenado con el *dataset* imputado no ha conseguido mejores resultados que el modelo que se muestra en el *script* inicial en el que se eliminan los NAs. Sin embargo, en la mayoría de los casos es mejor intentar predecir estos valores que eliminar los registros que los contengan porque el conjunto de datos podría quedar muy reducido. De igual modo hemos podido comprobar que aplicar *oversampling* con la función `SMOTE` para balancear la clase a predecir y generar un mayor número de muestras no ha sido beneficioso para entrenar los modelos, puesto que solo acertaba en la mitad de ocasiones. En resumen, los resultados proporcionados por cada uno de los cuatro modelos principales se puede observar en la siguiente tabla.
+
+| Modelo | Precisión | Kappa |
+|---|---|---|
+| Inicial con imputación | 68.54% | 32.69% | 
+| Inicial imputación+oversampling | 50% | - |
+| 1 capa oculta `relu` | 80.52% | 60.22% |
+| 1 capa oculta `softplus` | 80.9% | 60.42% |
 
 # Bibliografía
 
@@ -311,3 +347,9 @@ Por último he intentado **añadir más capas ocultas** a la topología anterior
 [3] Keras Documentation, Usage of optimizers, https://keras.io/optimizers/
 
 [4] Sashank J. Reddi, Satyen Kale & Sanjiv Kumar, ON THE CONVERGENCE OF ADAM AND BEYOND, http://www.satyenkale.com/papers/amsgrad.pdf
+
+[5] Keras Documentation, Usage of activations, https://keras.io/activations/
+
+[6] towards data science, Rinat Maksutov, 2018, Deep study of a not very deep neural network. Part 2: Activation functions, https://towardsdatascience.com/deep-study-of-a-not-very-deep-neural-network-part-2-activation-functions-fd9bd8d406fc
+
+[7] Machine Intelligence, vivek, Different types of Activation functions in Deep Learning., 2017,  http://www.machineintellegence.com/different-types-of-activation-functions-in-keras/
