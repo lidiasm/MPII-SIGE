@@ -41,3 +41,5 @@ El problema consiste en predecir la prenda a la que corresponde cada imagen, cod
 * 7 - Sneaker
 * 8 - Bag
 * 9 - Ankle boot
+
+El repositorio para esta práctica se encuentra [aquí](https://github.com/ProyectosComunes-MII/SIGE-P2)
